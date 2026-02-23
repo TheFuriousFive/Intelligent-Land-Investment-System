@@ -1,6 +1,5 @@
 package com.example.landapp.entity;
 
-package com.example.landapp.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
