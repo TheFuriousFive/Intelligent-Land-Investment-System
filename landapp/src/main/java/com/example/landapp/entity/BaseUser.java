@@ -1,12 +1,14 @@
 package com.example.landapp.entity;
 
-
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "users")
-@Inheritance(strategy = InheritanceType.JOINED) // Spring Boot will create a 'users' table
+@Inheritance(strategy = InheritanceType.JOINED)
 @Data
 public abstract class BaseUser {
 
@@ -16,6 +18,19 @@ public abstract class BaseUser {
 
     private String firstName;
     private String lastName;
-    private String gender ;
+
+    @Column(unique = true, nullable = false)
     private String email;
+
+    private String contactNumber;
+
+    @Column(nullable = false)
+    private String passwordHash;
+
+    @CreationTimestamp
+    @Column(updatable = false)
+    private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    private LocalDateTime updatedAt;
 }
