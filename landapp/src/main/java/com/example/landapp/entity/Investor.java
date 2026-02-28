@@ -10,9 +10,6 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 public class Investor extends BaseUser {
 
-    // Inherits id, firstName, and lastName from BaseUser!
-    private String email;
-    private String nationality;
-
-
+    // Additional investor-specific fields could go here
+    // e.g., investmentBudget or preferredRegions
 }
