@@ -19,6 +19,9 @@ public class OwnerController {
     @Autowired
     private OwnerService ownerService;
 
+    /*
+    This Api endpoint is for the owner registration. It accepts a JSON payload with the owner's details,
+    */
     @PostMapping("/register")
     public ResponseEntity<OwnerResponseDTO> register(@RequestBody OwnerRegistrationDTO dto) {
         OwnerResponseDTO response = ownerService.registerOwner(dto);
@@ -26,6 +29,9 @@ public class OwnerController {
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
+    /*
+      This is for the Owner to create a new land listing.
+     */
     @PostMapping("/{ownerId}/listings")
     public ResponseEntity<String> createListing(
             @PathVariable Long ownerId,
@@ -40,7 +46,9 @@ public class OwnerController {
         return new ResponseEntity<>("Land listing created successfully", HttpStatus.CREATED);
     }
 
-
+    /*
+      This is for the Owner to update create the land listing.
+    */
     @PutMapping("/{ownerId}/listings/{listingId}")
     public ResponseEntity<String> updateListing(
             @PathVariable Long ownerId,
@@ -52,7 +60,9 @@ public class OwnerController {
         return new ResponseEntity<>("Land listing updated successfully", HttpStatus.OK);
     }
 
-
+    /*
+      This is for the Owner to delete  the land listing.
+    */
     @DeleteMapping("/{ownerId}/listings/{listingId}")
     public ResponseEntity<String> deleteListing(
             @PathVariable Long ownerId,
@@ -62,7 +72,9 @@ public class OwnerController {
         return new ResponseEntity<>("Land listing deleted successfully", HttpStatus.OK);
     }
 
-
+    /*
+    For the Owner to answer a question regarding a landListing , to the Investor.
+    */
     @PostMapping("/{ownerId}/questions/{questionId}/answer")
     public ResponseEntity<String> answerQuestion(
             @PathVariable Long ownerId,
@@ -73,6 +85,10 @@ public class OwnerController {
         return new ResponseEntity<>("Question answered successfully", HttpStatus.OK);
     }
 
+    /*
+    This endpoint allows the Owner to view all their land listings.
+     It returns a list of LandListingResponseDTOs, which contain the details of each listing.
+     */
     @GetMapping("/{ownerId}/listings")
     public ResponseEntity<List<LandListingResponseDTO>> getOwnerListings(@PathVariable Long ownerId) {
         List<LandListingResponseDTO> listings = ownerService.getOwnerListings(ownerId);
