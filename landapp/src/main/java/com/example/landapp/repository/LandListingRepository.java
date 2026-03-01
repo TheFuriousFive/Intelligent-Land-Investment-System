@@ -8,5 +8,8 @@ import java.util.List;
 @Repository
 public interface LandListingRepository extends JpaRepository<LandListing, Long> {
 
+    // Spring Boot writes the SQL for this automatically!
+    List<LandListing> findByOwnerId(Long ownerId);
+
 
 }
