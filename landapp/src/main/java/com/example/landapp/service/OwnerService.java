@@ -63,7 +63,7 @@ public class OwnerService {
         // TO DO
     }
 
-    public List<LandListingResponseDTO> viewMyListings(Long ownerId) {
+    public List<LandListingResponseDTO> getOwnerListings(Long ownerId) {
         // 1. Fetch the raw entities from the database
         List<LandListing> listings = landRepository.findByOwnerId(ownerId);
         // Convert them to Response DTOs and return the list

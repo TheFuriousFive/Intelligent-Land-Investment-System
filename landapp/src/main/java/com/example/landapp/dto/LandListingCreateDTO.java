@@ -1,6 +1,11 @@
 package com.example.landapp.dto;
 
-public class LandListingCreateDTO {
+import lombok.Data;
 
+@Data
+public class LandListingCreateDTO {
+    private Long ownerId;
+
+    // This class needs to be explanded with other fields **
 
 }
