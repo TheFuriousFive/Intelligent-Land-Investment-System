@@ -1,5 +1,6 @@
 package com.example.landapp.service;
 
+import com.example.landapp.dto.LandListingCreateDTO;
 import com.example.landapp.dto.OwnerRegistrationDTO;
 import com.example.landapp.dto.OwnerResponseDTO;
 import com.example.landapp.entity.Owner;
@@ -31,5 +32,26 @@ public class OwnerService {
 
         // 4. Return the Response DTO (clean data)
         return ownerMapper.toResponseDTO(savedOwner);
+    }
+
+    // 1. CREATE Listing
+    public void createListing(LandListingCreateDTO dto) {
+        //TO DO
+    }
+
+    // 2. DELETE Listing
+    public void deleteListing(Long listingId, Long ownerId) {
+        // TO DO
+
+    }
+
+    // 3. UPDATE Listing
+    public void updateListing(Long listingId, LandListingCreateDTO updateDto) {
+        // TO DO
+
+    }
+
+    public void answerQuestion(Long questionId, String answerContent) {
+        // TO DO
     }
 }
