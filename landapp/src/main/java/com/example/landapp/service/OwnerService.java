@@ -1,13 +1,18 @@
 package com.example.landapp.service;
 
 import com.example.landapp.dto.LandListingCreateDTO;
+import com.example.landapp.dto.LandListingResponseDTO;
 import com.example.landapp.dto.OwnerRegistrationDTO;
 import com.example.landapp.dto.OwnerResponseDTO;
+import com.example.landapp.entity.LandListing;
 import com.example.landapp.entity.Owner;
 import com.example.landapp.mapper.OwnerMapper;
+import com.example.landapp.repository.LandListingRepository;
 import com.example.landapp.repository.OwnerRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 @Service
 public class OwnerService {
@@ -17,6 +22,9 @@ public class OwnerService {
 
     @Autowired
     private OwnerMapper ownerMapper;
+
+    @Autowired
+    private LandListingRepository landRepository;
 
 
     public OwnerResponseDTO registerOwner(OwnerRegistrationDTO registrationDTO) {
@@ -53,5 +61,13 @@ public class OwnerService {
 
     public void answerQuestion(Long questionId, String answerContent) {
         // TO DO
+    }
+
+    public List<LandListingResponseDTO> viewMyListings(Long ownerId) {
+        // 1. Fetch the raw entities from the database
+        List<LandListing> listings = landRepository.findByOwnerId(ownerId);
+        // Convert them to Response DTOs and return the list
+
+        return null; // TO DO: Return the list of DTOs
     }
 }
