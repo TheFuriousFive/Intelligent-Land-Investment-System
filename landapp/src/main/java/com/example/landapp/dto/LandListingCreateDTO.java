@@ -1,23 +1,31 @@
 package com.example.landapp.dto;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import jakarta.validation.constraints.*;
+import lombok.*;
 import java.math.BigDecimal;
 
 @Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
-public class LandListingDTO {
-    private Long id;
-    private String title;
-    private String location;
-    private BigDecimal price;
-    private Double area;
-    private String landType;
-    private String status;
+public class LandListingCreateDTO {
 
-    // Instead of the whole Owner object, we just send the name
-    private String ownerName;
+    @NotBlank
+    @Size(max = 100)
+    private String title;
+
+    private String description;
+
+    @NotNull
+    @DecimalMin(value = "0.0", inclusive = false)
+    private BigDecimal price;
+
+    @NotNull
+    @Positive
+    private Double area;
+
+    @NotBlank
+    private String location;
+
+    private String landType;
+
+    @NotNull
+    private Long ownerId;
+
 }
