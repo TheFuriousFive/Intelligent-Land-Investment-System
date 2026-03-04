@@ -25,27 +25,27 @@ public class LandListingMapper {
     }
 
     // 2. Entity -> Response DTO (For Reading)
-    public LandListingResponseDTO toResponseDTO(LandListing entity) {
-        if (entity == null) return null;
+    public LandListingResponseDTO toResponseDTO(LandListing land) {
+        if (land == null) return null;
 
         LandListingResponseDTO dto = new LandListingResponseDTO();
-        dto.setId(entity.getId());
-        dto.setTitle(entity.getTitle());
-        dto.setDescription(entity.getDescription());
-        dto.setPrice(entity.getPrice());
-        dto.setArea(entity.getArea());
-        dto.setLocation(entity.getLocation());
-        dto.setLandType(entity.getLandType());
-        dto.setPostedDate(entity.getPostedDate());
+        dto.setId(land.getId());
+        dto.setTitle(land.getTitle());
+        dto.setDescription(land.getDescription());
+        dto.setPrice(land.getPrice());
+        dto.setArea(land.getArea());
+        dto.setLocation(land.getLocation());
+        dto.setLandType(land.getLandType());
+        dto.setPostedDate(land.getPostedDate());
 
         // Convert the Enum to a String safely
-        if (entity.getStatus() != null) {
-            dto.setStatus(entity.getStatus().name());
+        if (land.getStatus() != null) {
+            dto.setStatus(land.getStatus().name());
         }
 
         // Flatten the owner data safely (assuming Owner has firstName/lastName like Investor)
-        if (entity.getOwner() != null) {
-            dto.setOwnerName(entity.getOwner().getFirstName() + " " + entity.getOwner().getLastName());
+        if (land.getOwner() != null) {
+            dto.setOwnerName(land.getOwner().getFirstName() + " " + land.getOwner().getLastName());
         }
 
         return dto;
