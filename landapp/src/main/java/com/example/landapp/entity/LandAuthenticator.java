@@ -1,0 +1,31 @@
+package com.example.landapp.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+@Entity
+@Table(name = "land_authenticators")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class LandAuthenticator {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false, unique = true)
+    private String username;
+
+    @Column(nullable = false, unique = true)
+    private String email;
+
+    @Column(nullable = false)
+    private String passwordHash;
+
+    @Column(name = "professional_reg_number", nullable = false, unique = true)
+    private String professionalRegNumber;
+
+    // You can add a method or mapping here to link them to the listings they authenticate
+}
