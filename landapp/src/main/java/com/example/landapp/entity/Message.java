@@ -1,7 +1,9 @@
 package com.example.landapp.entity;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 
 @Entity
@@ -13,7 +15,8 @@ import lombok.Data;
 
 //automatically generates all setters/getters, toSting, equals and hashCode
 @Data
-
+@NoArgsConstructor
+@AllArgsConstructor
 public abstract class Message {
 
     //make primary key of Message entity
