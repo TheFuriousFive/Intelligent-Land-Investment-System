@@ -102,9 +102,15 @@ public class OwnerService {
     public List<LandListingResponseDTO> getOwnerListings(Long ownerId) {
         // 1. Fetch the raw entities from the database
         List<LandListing> listings = landRepository.findByOwnerId(ownerId);
-        // Convert them to Response DTOs and return the list
 
-        return null; // TO DO: Return the list of DTOs
+        // 2. Convert them to Response DTOs and return the list
+        return listings.stream()
+                .map(landMapper::toResponseDTO)
+                .toList();
+
+
+
+
     }
 
     public OwnerResponseDTO getOwnerById(Long ownerId) {
