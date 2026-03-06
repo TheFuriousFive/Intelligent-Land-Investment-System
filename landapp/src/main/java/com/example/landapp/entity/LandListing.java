@@ -38,6 +38,10 @@ public class LandListing {
     @Enumerated(EnumType.STRING)
     private ListingStatus status; // e.g., AVAILABLE, SOLD, PENDING
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "verification_status", nullable = false)
+    private VerificationStatus verificationStatus;
+
     @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "posted_date", updatable = false)
     private Date postedDate;
