@@ -1,7 +1,9 @@
 package com.example.landapp.entity;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
@@ -14,6 +16,8 @@ import java.time.LocalDateTime;
 /**/
 @Inheritance(strategy = InheritanceType.JOINED)
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 public abstract class BaseUser {
 
     //marks the primary key of the data model

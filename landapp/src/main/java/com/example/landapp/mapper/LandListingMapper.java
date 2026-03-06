@@ -1,0 +1,67 @@
+package com.example.landapp.mapper;
+
+import com.example.landapp.dto.LandListingCreateDTO;
+import com.example.landapp.dto.LandListingResponseDTO;
+import com.example.landapp.entity.LandListing;
+import org.springframework.stereotype.Component;
+
+@Component
+public class LandListingMapper {
+
+    // 1. DTO -> Entity (For Creating)
+    public LandListing toEntity(LandListingCreateDTO dto) {
+        if (dto == null) return null;
+
+        LandListing listing = new LandListing();
+        listing.setTitle(dto.getTitle());
+        listing.setDescription(dto.getDescription());
+        listing.setPrice(dto.getPrice());
+        listing.setArea(dto.getArea());
+        listing.setLocation(dto.getLocation());
+        listing.setLandType(dto.getLandType());
+
+        // owner, status, and postedDate are handled in the Service or @PrePersist
+        return listing;
+    }
+
+    // 2. Entity -> Response DTO (For Reading)
+    public LandListingResponseDTO toResponseDTO(LandListing land) {
+        if (land == null) return null;
+
+        LandListingResponseDTO dto = new LandListingResponseDTO();
+        dto.setId(land.getId());
+        dto.setTitle(land.getTitle());
+        dto.setDescription(land.getDescription());
+        dto.setPrice(land.getPrice());
+        dto.setArea(land.getArea());
+        dto.setLocation(land.getLocation());
+        dto.setLandType(land.getLandType());
+        dto.setPostedDate(land.getPostedDate());
+
+        // Convert the Enum to a String safely
+        if (land.getStatus() != null) {
+            dto.setStatus(land.getStatus().name());
+        }
+
+        // Flatten the owner data safely (assuming Owner has firstName/lastName like Investor)
+        if (land.getOwner() != null) {
+            dto.setOwnerName(land.getOwner().getFirstName() + " " + land.getOwner().getLastName());
+        }
+
+        return dto;
+    }
+
+    // 3. Update Existing Entity (Keeps your Service layer clean)
+    public void updateEntityFromDto(LandListingCreateDTO dto, LandListing existing) {
+        if (dto == null || existing == null) return;
+
+        existing.setTitle(dto.getTitle());
+        existing.setDescription(dto.getDescription());
+        existing.setPrice(dto.getPrice());
+        existing.setArea(dto.getArea());
+        existing.setLocation(dto.getLocation());
+        existing.setLandType(dto.getLandType());
+
+        // Note: We intentionally do NOT update the ID, Owner, Status, or Date here.
+    }
+}
