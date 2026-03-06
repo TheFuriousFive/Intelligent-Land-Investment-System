@@ -25,9 +25,7 @@ public class LandListingResponseDTO {
     //  When was this listing verified (null if still pending or rejected)
     private Date verifiedAt;
 
-    // (i.e., verificationStatus is still PENDING_VERIFICATION)
-    // This allows the frontend to show "Not yet reviewed" when it's null
-    private String authenticatorName;
+
 
     // The professional registration number of the authenticator
     // Useful for the investor to verify the legitimacy of who validated the listing
