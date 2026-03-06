@@ -11,7 +11,4 @@ public interface QuestionRepository extends JpaRepository<Question, Long> {
     // Find all questions for a specific land listing
     List<Question> findByListingId(Long listingId);
 
-    //find all unanswered questions relevant to owner
-    //useful for "owner dashboard "
-    List<Question> findByListingOwnerIdAndAnswerIsNull(Long ownerId);
 }
