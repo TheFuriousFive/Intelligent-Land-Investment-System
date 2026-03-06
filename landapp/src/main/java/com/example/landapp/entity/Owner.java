@@ -1,20 +1,26 @@
 package com.example.landapp.entity;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+
 import java.util.List;
 
 @Entity
 @Table(name = "owners")
 @Data
-@EqualsAndHashCode(callSuper = true) // Tells Lombok to include parent fields in comparisons
+@EqualsAndHashCode(callSuper = true)
+@NoArgsConstructor
+@AllArgsConstructor
 public class Owner extends BaseUser {
 
-    private String nicNumber;
-    private String address;
-    private String phoneNumber;
+    private Double trustScore = 0.0;
 
-    @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL)
+    // Linking to the LandListing entity
+    @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<LandListing> landListings;
+
+
 }
