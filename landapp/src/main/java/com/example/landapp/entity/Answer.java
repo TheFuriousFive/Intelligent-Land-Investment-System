@@ -12,14 +12,14 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "questions")
+@Table(name = "answers") // <-- FIX: Changed from "questions" to "answers"
 @Data
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @AllArgsConstructor
-public class Answer extends Message{
+public class Answer extends Message {
 
-    @CreationTimestamp //Automatically set the time when insert
-    @Column(updatable = false, nullable = false) //Ensure its never changed or null
+    @CreationTimestamp
+    @Column(updatable = false, nullable = false)
     private LocalDateTime answeredAt;
 }
