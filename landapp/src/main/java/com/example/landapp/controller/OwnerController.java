@@ -95,6 +95,15 @@ public class OwnerController {
         return new ResponseEntity<>(listings, HttpStatus.OK);
     }
 
+    /*
+  This endpoint fetches a specific owner's profile by their ID.
+*/
+    @GetMapping("/{ownerId}")
+    public ResponseEntity<OwnerResponseDTO> getOwner(@PathVariable Long ownerId) {
+        OwnerResponseDTO response = ownerService.getOwnerById(ownerId);
+        return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
 
 
 

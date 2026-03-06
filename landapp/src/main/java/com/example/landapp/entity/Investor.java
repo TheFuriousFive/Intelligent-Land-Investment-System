@@ -11,7 +11,6 @@ import lombok.NoArgsConstructor;
 @Data
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
-@AllArgsConstructor
 public class Investor extends BaseUser {
 
     // Additional investor-specific fields could go here
