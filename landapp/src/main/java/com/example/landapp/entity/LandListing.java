@@ -38,20 +38,41 @@ public class LandListing {
     @Enumerated(EnumType.STRING)
     private ListingStatus status; // e.g., AVAILABLE, SOLD, PENDING
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "verification_status", nullable = false)
+    private VerificationStatus verificationStatus;
+
     @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "posted_date", updatable = false)
     private Date postedDate;
+
+    @Temporal(TemporalType.TIMESTAMP)
+    @Column(name = "verified_at")
+    private Date verifiedAt;
 
     // Relationship with the Owner entity
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner_id", nullable = false)
     private Owner owner;
 
+    // nullable = true because when a listing is first created, no authenticator has been
+    // assigned yet. An authenticator is only linked AFTER they review the documents.
+    // This also means if an authenticator account is deleted, this becomes NULL safely
+    // and the listing is NOT deleted (avoids the CascadeType.REMOVE problem).
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "authenticator_id", nullable = true)
+    private LandAuthenticator landAuthenticator;
+
     @PrePersist
     protected void onCreate() {
         this.postedDate = new Date();
         if (this.status == null) {
             this.status = ListingStatus.AVAILABLE;
+        }
+        // Every listing starts as PENDING_VERIFICATION when first created
+        // Matches your State Machine: Owner Creates Listing → Draft → Upload Docs → Pending_Verification
+        if (this.verificationStatus == null) {
+            this.verificationStatus = VerificationStatus.PENDING_VERIFICATION;
         }
     }
 }
