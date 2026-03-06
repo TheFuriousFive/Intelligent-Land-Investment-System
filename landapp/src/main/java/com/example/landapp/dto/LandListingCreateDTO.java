@@ -28,4 +28,11 @@ public class LandListingCreateDTO {
     @NotNull
     private Long ownerId;
 
+    // NOTE: We do NOT include authenticatorId or verificationStatus here.
+    // Reason: When an Owner creates a listing, they don't choose who verifies it.
+    // The verificationStatus is automatically set to PENDING_VERIFICATION by @PrePersist.
+    // The authenticatorId is assigned later by the system when a LandAuthenticator
+    // picks up the listing to review it — that is a separate API call/flow entirely.
+
+
 }
