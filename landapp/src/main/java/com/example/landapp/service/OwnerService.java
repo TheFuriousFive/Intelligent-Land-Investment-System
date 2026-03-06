@@ -106,4 +106,10 @@ public class OwnerService {
 
         return null; // TO DO: Return the list of DTOs
     }
+
+    public OwnerResponseDTO getOwnerById(Long ownerId) {
+        Owner owner = ownerRepository.findById(ownerId)
+                .orElseThrow(() -> new RuntimeException("Owner not found"));
+        return ownerMapper.toResponseDTO(owner);
+    }
 }
