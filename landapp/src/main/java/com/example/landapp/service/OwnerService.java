@@ -104,9 +104,11 @@ public class OwnerService {
         List<LandListing> listings = landRepository.findByOwnerId(ownerId);
 
         // 2. Convert them to Response DTOs and return the list
-        return listings.stream()
-                .map(landMapper::toResponseDTO)
-                .toList();
+
+
+
+
+
     }
 
     public OwnerResponseDTO getOwnerById(Long ownerId) {
