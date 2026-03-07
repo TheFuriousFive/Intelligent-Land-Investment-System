@@ -16,7 +16,18 @@ public class LandListingResponseDTO {
     private String status;
     private Date postedDate;
 
-    // Flattened Owner details for the frontend
     // Frontend can see only owner name
     private String ownerName;
+
+    // Frontend needs to know the verification state of the listing
+    private String verificationStatus;
+
+    //  When was this listing verified (null if still pending or rejected)
+    private Date verifiedAt;
+
+
+
+    // The professional registration number of the authenticator
+    // Useful for the investor to verify the legitimacy of who validated the listing
+    private String authenticatorRegNumber;
 }

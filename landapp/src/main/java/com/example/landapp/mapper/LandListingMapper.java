@@ -37,15 +37,25 @@ public class LandListingMapper {
         dto.setLocation(land.getLocation());
         dto.setLandType(land.getLandType());
         dto.setPostedDate(land.getPostedDate());
+        dto.setVerifiedAt(land.getVerifiedAt());
 
         // Convert the Enum to a String safely
         if (land.getStatus() != null) {
             dto.setStatus(land.getStatus().name());
         }
+        if (land.getVerificationStatus() != null) {
+            dto.setVerificationStatus(land.getVerificationStatus().name());
+        }
 
         // Flatten the owner data safely (assuming Owner has firstName/lastName like Investor)
         if (land.getOwner() != null) {
             dto.setOwnerName(land.getOwner().getFirstName() + " " + land.getOwner().getLastName());
+        }
+
+        if (land.getLandAuthenticator() != null) {
+            dto.setAuthenticatorRegNumber(
+                    land.getLandAuthenticator().getProfessionalRegNumber()
+            );
         }
 
         return dto;
