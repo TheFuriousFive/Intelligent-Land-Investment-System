@@ -26,7 +26,7 @@ public class TrustScoreService {
 
         double totalScore = 0.0;
 
-        // --- 1. Profile Completeness (Max 20 points) ---
+        //  Profile Completeness
         if (owner.getFirstName() != null && !owner.getFirstName().trim().isEmpty() &&
                 owner.getLastName() != null && !owner.getLastName().trim().isEmpty()) {
             totalScore += 10.0;
@@ -35,14 +35,12 @@ public class TrustScoreService {
             totalScore += 10.0;
         }
 
-        // --- 2. Sales History (Max 40 points) ---
-        // 10 points per successful sale.
+        // Sales History (Max 40 points)
         List<LandListing> soldListings = landRepository.findByOwnerIdAndStatus(ownerId, ListingStatus.SOLD);
         double salesScore = soldListings.size() * 10.0;
         totalScore += Math.min(salesScore, 40.0);
 
-        // --- 3. Authenticated Listings (Max 40 points) ---
-        // 10 points ONLY if a registered LandAuthenticator approved the listing.
+        //  Authenticated Listings
         List<LandListing> verifiedListings = landRepository.findByOwnerIdAndVerificationStatus(ownerId, VerificationStatus.VERIFIED);
         double verificationScore = verifiedListings.size() * 10.0;
         totalScore += Math.min(verificationScore, 40.0);

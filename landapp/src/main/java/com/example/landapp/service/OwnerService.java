@@ -31,6 +31,9 @@ public class OwnerService {
     @Autowired
     private LandListingMapper landMapper;
 
+    @Autowired
+    private TrustScoreService trustScoreService;
+
 
     public OwnerResponseDTO registerOwner(OwnerRegistrationDTO registrationDTO) {
         //  Convert DTO to Entity using the mapper class
@@ -114,6 +117,10 @@ public class OwnerService {
     }
 
     public OwnerResponseDTO getOwnerById(Long ownerId) {
+
+        trustScoreService.calculateTrustScore(ownerId);
+
+
         Owner owner = ownerRepository.findById(ownerId)
                 .orElseThrow(() -> new RuntimeException("Owner not found"));
         return ownerMapper.toResponseDTO(owner);
