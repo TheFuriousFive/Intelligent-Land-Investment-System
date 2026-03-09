@@ -15,12 +15,7 @@ public class InvestorController {
     @Autowired
     private InvestorService investorService;
 
-    // 1. REGISTER
-    @PostMapping("/register")
-    public ResponseEntity<InvestorResponseDTO> register(@RequestBody InvestorRegistrationDTO dto) {
-        InvestorResponseDTO response = investorService.registerInvestor(dto);
-        return new ResponseEntity<>(response, HttpStatus.CREATED);
-    }
+
 
     // 2. SEARCH LAND (Filtering)
     @GetMapping("/search")

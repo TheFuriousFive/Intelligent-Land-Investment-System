@@ -35,20 +35,6 @@ public class OwnerService {
     private TrustScoreService trustScoreService;
 
 
-    public OwnerResponseDTO registerOwner(OwnerRegistrationDTO registrationDTO) {
-        //  Convert DTO to Entity using the mapper class
-        Owner owner = ownerMapper.toEntity(registrationDTO);
-
-        //This is for the hashing logic . although for now this is just
-        // fake hashing (Must implement this later !)
-        owner.setPasswordHash("SAFE_HASH_" + registrationDTO.getPassword());
-
-        // 3. Save to Database
-        Owner savedOwner = ownerRepository.save(owner);
-
-        // 4. Return the Response DTO (clean data)
-        return ownerMapper.toResponseDTO(savedOwner);
-    }
 
     // 1. CREATE Listing
     @Transactional

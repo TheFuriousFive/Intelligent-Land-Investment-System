@@ -19,15 +19,6 @@ public class OwnerController {
     @Autowired
     private OwnerService ownerService;
 
-    /*
-    This Api endpoint is for the owner registration. It accepts a JSON payload with the owner's details,
-    */
-    @PostMapping("/register")
-    public ResponseEntity<OwnerResponseDTO> register(@RequestBody OwnerRegistrationDTO dto) {
-        OwnerResponseDTO response = ownerService.registerOwner(dto);
-        // 201 CREATED is the professional status code for making a new resource
-        return new ResponseEntity<>(response, HttpStatus.CREATED);
-    }
 
     /*
       This is for the Owner to create a new land listing.
