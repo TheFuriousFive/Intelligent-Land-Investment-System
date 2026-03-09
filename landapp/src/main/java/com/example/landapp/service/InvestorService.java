@@ -23,15 +23,6 @@ public class InvestorService {
     // @Autowired private ReviewRepository reviewRepository;
 
 
-    public InvestorResponseDTO registerInvestor(InvestorRegistrationDTO registrationDTO) {
-        Investor investor = investorMapper.toEntity(registrationDTO);
-
-        // Fake hashing for now ! To be implemented later
-        investor.setPasswordHash("SAFE_HASH_" + registrationDTO.getPassword());
-
-        Investor savedInvestor = investorRepository.save(investor);
-        return investorMapper.toResponseDTO(savedInvestor);
-    }
 
 
     public void searchLandListings(String keyword, Double maxPrice) {
