@@ -28,4 +28,12 @@ public class Review {
     @CreationTimestamp
     @Column(updatable = false,nullable = false)
     private LocalDateTime createdAt;
+
+    @ManyToOne
+    @JoinColumn(name = "investorId", nullable = false)
+    private Investor investor;
+
+    @ManyToOne
+    @JoinColumn(name = "ownerId", nullable = false)
+    private Owner owner;
 }

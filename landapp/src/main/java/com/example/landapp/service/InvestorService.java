@@ -3,15 +3,10 @@ package com.example.landapp.service;
 import com.example.landapp.dto.InvestorRegistrationDTO;
 import com.example.landapp.dto.InvestorResponseDTO;
 import com.example.landapp.dto.LandListingResponseDTO;
-import com.example.landapp.entity.Investor;
-import com.example.landapp.entity.LandListing;
-import com.example.landapp.entity.ListingStatus;
-import com.example.landapp.entity.Question;
+import com.example.landapp.entity.*;
 import com.example.landapp.mapper.InvestorMapper;
 import com.example.landapp.mapper.LandListingMapper;
-import com.example.landapp.repository.InvestorRepository;
-import com.example.landapp.repository.LandListingRepository;
-import com.example.landapp.repository.QuestionRepository;
+import com.example.landapp.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -41,15 +36,16 @@ public class InvestorService {
     // Talks to the question table
     // Used to save a new Question entity
 
-//    @Autowired
-//    private ReviewRepository reviewRepository;
-//    // Talks to the review table
-//    // Used to save a new Review entity
+    @Autowired
+    private ReviewRepository reviewRepository;
+    // Talks to the review table
+    // Used to save a new Review entity
 
 //    @Autowired
 //    private MessageRepository messageRepository;
 //    // Talks to the message table
 //    // Used to save an inquiry message from investor to owner
+    private OwnerRepository ownerRepository;
 
     @Autowired
     private InvestorMapper investorMapper;
@@ -107,7 +103,7 @@ public class InvestorService {
         //Build the Question entity
         Question question = new Question();
         question.setContent(content);         // the actual question text
-        question.setInvestorId(investorId);        // who asked it
+        question.setInvestor(investor);        // who asked it
         question.setLandListing(listing);      // which listing it belongs to
         question.setCreatedAt(LocalDateTime.now());    // when it was asked
 
@@ -115,9 +111,31 @@ public class InvestorService {
         questionRepository.save(question);
     }
 
-    public void submitReview(Long investorId, Long landListingId, int rating, String reviewText) {
-        // TO DO: Create a Review entity
-        // Link it to the Investor and the LandListing
+    public void submitReview(Long investorId,Long ownerId, int rating, String comment) {
+
+        //Validate the rating range
+        if (rating < 1 || rating > 5) {
+            throw new RuntimeException("Rating must be between 1 and 5");
+        }
+
+        Investor investor = investorRepository.findById(investorId)
+                .orElseThrow(() -> new RuntimeException("Investor not found: " + investorId));
+
+        Owner owner = ownerRepository.findById(ownerId)
+                .orElseThrow(() -> new RuntimeException("Owner not found: "+ ownerId));
+
+        //Build the Review entity
+        Review review = new Review();
+        review.setRating(rating);
+        review.setComment(comment);
+        review.setInvestor(investor);
+        review.setOwner(owner);
+        review.setCreatedAt(LocalDateTime.now());
+
+        //Save the review
+        reviewRepository.save(review);
+
+
     }
 
     public void inquireAboutLand(Long investorId, Long landListingId) {
