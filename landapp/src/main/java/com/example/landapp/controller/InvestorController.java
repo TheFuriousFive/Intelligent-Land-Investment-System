@@ -1,11 +1,12 @@
 package com.example.landapp.controller;
 
-import com.example.landapp.dto.InvestorRegistrationDTO;
-import com.example.landapp.dto.InvestorResponseDTO;
+import com.example.landapp.entity.Investor;
 import com.example.landapp.service.InvestorService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -14,8 +15,6 @@ public class InvestorController {
 
     @Autowired
     private InvestorService investorService;
-
-
 
     // 2. SEARCH LAND (Filtering)
     @GetMapping("/search")
@@ -28,34 +27,39 @@ public class InvestorController {
     }
 
     // 3. ASK A QUESTION
-    @PostMapping("/{investorId}/listings/{listingId}/questions")
+    @PostMapping("/listings/{listingId}/questions")
     public ResponseEntity<String> askQuestion(
-            @PathVariable Long investorId,
             @PathVariable Long listingId,
             @RequestBody QuestionRequest request) {
 
-        investorService.askQuestion(investorId, listingId, request.content());
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        Investor currentInvestor = (Investor) authentication.getPrincipal();
+
+        investorService.askQuestion(currentInvestor.getId(), listingId, request.content());
         return new ResponseEntity<>("Question submitted successfully", HttpStatus.CREATED);
     }
 
     // 4. SUBMIT A REVIEW
-    @PostMapping("/{investorId}/listings/{listingId}/reviews")
+    @PostMapping("/listings/{listingId}/reviews")
     public ResponseEntity<String> submitReview(
-            @PathVariable Long investorId,
             @PathVariable Long listingId,
             @RequestBody ReviewRequest request) {
 
-        investorService.submitReview(investorId, listingId, request.rating(), request.reviewText());
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        Investor currentInvestor = (Investor) authentication.getPrincipal();
+
+        investorService.submitReview(currentInvestor.getId(), listingId, request.rating(), request.reviewText());
         return new ResponseEntity<>("Review submitted successfully", HttpStatus.CREATED);
     }
 
     // 5. INQUIRE ABOUT LAND
-    @PostMapping("/{investorId}/listings/{listingId}/inquiry")
-    public ResponseEntity<String> inquire(
-            @PathVariable Long investorId,
-            @PathVariable Long listingId) {
+    @PostMapping("/listings/{listingId}/inquiry")
+    public ResponseEntity<String> inquire(@PathVariable Long listingId) {
 
-        investorService.inquireAboutLand(investorId, listingId);
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        Investor currentInvestor = (Investor) authentication.getPrincipal();
+
+        investorService.inquireAboutLand(currentInvestor.getId(), listingId);
         return new ResponseEntity<>("Inquiry sent to the owner", HttpStatus.OK);
     }
 }
