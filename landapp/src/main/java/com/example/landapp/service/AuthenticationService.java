@@ -39,7 +39,7 @@ public class AuthenticationService {
         owner.setContactNumber(input.getContactNumber());
 
         // Hash the password before saving!
-        owner.setPasswordHash(passwordEncoder.encode(input.getPassword()));
+        owner.setPasswordHash(passwordEncoder.encode(input.getPasswordHash()));
 
         return userRepository.save(owner);
     }
@@ -52,7 +52,7 @@ public class AuthenticationService {
         investor.setContactNumber(input.getContactNumber());
 
         // Hash the password before saving!
-        investor.setPasswordHash(passwordEncoder.encode(input.getPassword()));
+        investor.setPasswordHash(passwordEncoder.encode(input.getPasswordHash()));
 
         return userRepository.save(investor);
     }

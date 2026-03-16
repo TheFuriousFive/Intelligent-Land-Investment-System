@@ -64,25 +64,26 @@ public class InvestorService {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    // REGISTER INVESTOR
-    public InvestorResponseDTO registerInvestor(InvestorRegistrationDTO dto) {
 
-        //Check if email is already taken
-        if (userRepository.findByEmail(dto.getEmail()).isPresent()) {
-            throw new RuntimeException("Email already in use: " + dto.getEmail());
-        }
-
-        //Convert DTO → Entity
-        Investor investor = investorMapper.toEntity(dto);
-
-        // the plain-text password before saving
-        investor.setPassword(passwordEncoder.encode(dto.getPassword()));
-
-        //Save the investor entity to the database
-        Investor savedInvestor = investorRepository.save(investor);
-
-        //Convert saved Entity → Response DTO
-        return investorMapper.toResponseDTO(savedInvestor);
+    public void searchLandListings(String keyword, Double maxPrice) {
+        // TO DO: Use landRepository to find matching lands
+        // e.g., landRepository.findByTitleContainingAndPriceLessThan(...)
     }
+
+    public void askQuestion(Long investorId, Long landListingId, String questionContent) {
+        // TO DO: Create a Message entity with type "QUESTION"
+        // Link it to the Investor (Sender) and the LandListing
+    }
+
+    public void submitReview(Long investorId, Long landListingId, int rating, String reviewText) {
+        // TO DO: Create a Review entity
+        // Link it to the Investor and the LandListing
+    }
+
+    public void inquireAboutLand(Long investorId, Long landListingId) {
+        // TO DO: This could send an automated email to the Owner
+        // or create an "Inquiry" record in the database.
+    }
+
 }
 
