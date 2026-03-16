@@ -1,30 +1,4 @@
-//package com.example.landapp.service;
-//
-//import com.example.landapp.dto.InvestorRegistrationDTO;
-//import com.example.landapp.dto.InvestorResponseDTO;
-//import com.example.landapp.entity.Investor;
-//import com.example.landapp.mapper.InvestorMapper;
-//import com.example.landapp.repository.InvestorRepository;
-//import org.springframework.beans.factory.annotation.Autowired;
-//import org.springframework.stereotype.Service;
-//
-//@Service
-//public class InvestorService {
-//
-//    @Autowired
-//    private InvestorRepository investorRepository;
-//
-//    @Autowired
-//    private InvestorMapper investorMapper;
-//
-//    // In the near future ... comment these studff to implement the methods given below.
-//    // @Autowired private LandListingRepository landRepository;
-//    // @Autowired private MessageRepository messageRepository;
-//    // @Autowired private ReviewRepository reviewRepository;
-//
-//
-//
-//
+
 //    public void searchLandListings(String keyword, Double maxPrice) {
 //        // TO DO: Use landRepository to find matching lands
 //        // e.g., landRepository.findByTitleContainingAndPriceLessThan(...)
@@ -111,8 +85,6 @@ public class InvestorService {
         return investorMapper.toResponseDTO(savedInvestor);
     }
 
-
-
     //SEARCH LAND LISTINGS
     public List<LandListingResponseDTO> searchLandListings(String keyword, Double maxPrice) {
 
@@ -133,28 +105,17 @@ public class InvestorService {
         // Filter by maxPrice if provided
         if (maxPrice != null) {
             listings = listings.stream()
-                    // doubleValue() converts BigDecimal price to a double for comparison
                     .filter(l -> l.getPrice().doubleValue() <= maxPrice)
                     .collect(Collectors.toList());
         }
 
-        // STEP 4: Convert each LandListing entity → LandListingResponseDTO
-        // .stream().map() applies landListingMapper.toResponseDTO()
-        // to every listing in the list.
-        // Result: a List of DTOs (safe for frontend) instead of List of Entities.
+        // Convert each LandListing entity → LandListingResponseDTO
         return listings.stream()
                 .map(landListingMapper::toResponseDTO)
-                // landListingMapper::toResponseDTO is a method reference —
-                // shorthand for: listing -> landListingMapper.toResponseDTO(listing)
                 .collect(Collectors.toList());
     }
 
-
-    // ═══════════════════════════════════════════════════════
-    // METHOD 3 — ASK A QUESTION
-    // Called by: InvestorController (POST /{investorId}/listings/{listingId}/questions)
-    // Job: find investor + listing → create Question entity → save → done
-    // ═══════════════════════════════════════════════════════
+    //ASK A QUESTION
     public void askQuestion(Long investorId, Long listingId, String content) {
 
         // STEP 1: Find the investor from DB by their ID
