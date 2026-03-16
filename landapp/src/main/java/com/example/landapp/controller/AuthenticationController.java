@@ -26,15 +26,15 @@ public class AuthenticationController {
 
     // 1. REGISTER OWNER
     @PostMapping("/signup/owner")
-    public ResponseEntity<OwnerResponseDTO> registerOwner(@RequestBody OwnerRegistrationDTO registerDto) {
-        OwnerResponseDTO registeredOwner = authenticationService.registerOwner(registerDto);
+    public ResponseEntity<Owner> registerOwner(@RequestBody OwnerRegistrationDTO registerDto) {
+        Owner registeredOwner = authenticationService.registerOwner(registerDto);
         return ResponseEntity.ok(registeredOwner);
     }
 
     // 2. REGISTER INVESTOR
     @PostMapping("/signup/investor")
-    public ResponseEntity<InvestorResponseDTO> registerInvestor(@RequestBody InvestorRegistrationDTO registerDto) {
-        InvestorResponseDTO registeredInvestor = authenticationService.registerInvestor(registerDto);
+    public ResponseEntity<Investor> registerInvestor(@RequestBody InvestorRegistrationDTO registerDto) {
+        Investor registeredInvestor = authenticationService.registerInvestor(registerDto);
         return ResponseEntity.ok(registeredInvestor);
     }
 
