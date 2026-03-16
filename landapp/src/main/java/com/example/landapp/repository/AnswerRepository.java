@@ -10,5 +10,5 @@ import java.util.Optional;
 public interface AnswerRepository extends JpaRepository<Answer, Long> {
 
     // Find an answer by the Question ID it belongs to
-    Optional<Answer> findByQuestionId(Long questionId);
+    Optional<Answer> findByLandListing_Id(Long landListingId);
 }

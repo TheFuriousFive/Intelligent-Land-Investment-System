@@ -29,6 +29,6 @@ public abstract class Message {
 
     //Linking to the LandListing entity
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "land_listing_id")
+    @JoinColumn(name = "listing_id")
     private LandListing landListing;
 }

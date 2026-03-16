@@ -9,6 +9,6 @@ import java.util.List;
 public interface QuestionRepository extends JpaRepository<Question, Long> {
 
     // Find all questions for a specific land listing
-    List<Question> findByListingId(Long listingId);
+    List<Question> findByLandListing_Id(Long landListingId);
 
 }
