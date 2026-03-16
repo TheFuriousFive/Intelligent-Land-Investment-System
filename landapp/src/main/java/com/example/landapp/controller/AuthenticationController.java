@@ -7,10 +7,12 @@ import com.example.landapp.entity.Owner;
 import com.example.landapp.service.AuthenticationService;
 import com.example.landapp.service.JwtService;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @RequestMapping("/auth")
 @RestController
@@ -65,5 +67,29 @@ public class AuthenticationController {
                 .build();
 
         return ResponseEntity.ok(loginResponse);
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<Map<String, Object>> getCurrentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        // Grab the base user (could be Owner OR Investor)
+        BaseUser currentUser = (BaseUser) authentication.getPrincipal();
+
+        // Build a response that tells the frontend exactly what type of user this is
+        Map<String, Object> response = new HashMap<>();
+        response.put("id", currentUser.getId());
+        response.put("firstName", currentUser.getFirstName());
+        response.put("email", currentUser.getEmail());
+
+        if (currentUser instanceof Owner) {
+            response.put("userType", "OWNER");
+        } else if (currentUser instanceof Investor) {
+            response.put("userType", "INVESTOR");
+        } else {
+            response.put("userType", "UNKNOWN");
+        }
+
+        return ResponseEntity.ok(response);
     }
 }
