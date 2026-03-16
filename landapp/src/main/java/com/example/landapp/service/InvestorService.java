@@ -23,28 +23,24 @@ public class InvestorService {
     @Autowired
     private InvestorRepository investorRepository;
 
-//    @Autowired
-//    private UserRepository userRepository;
-//    // Talks to the base user table — used to check
-//    // if an email is already registered (across ALL user types)
 
     @Autowired
     private LandListingRepository landListingRepository;
 
     @Autowired
     private QuestionRepository questionRepository;
-    // Talks to the question table
-    // Used to save a new Question entity
+
 
     @Autowired
     private ReviewRepository reviewRepository;
-    // Talks to the review table
-    // Used to save a new Review entity
+
 
 //    @Autowired
 //    private MessageRepository messageRepository;
 //    // Talks to the message table
 //    // Used to save an inquiry message from investor to owner
+
+    @Autowired
     private OwnerRepository ownerRepository;
 
     @Autowired
@@ -102,10 +98,10 @@ public class InvestorService {
 
         //Build the Question entity
         Question question = new Question();
-        question.setContent(content);         // the actual question text
-        question.setInvestor(investor);        // who asked it
-        question.setLandListing(listing);      // which listing it belongs to
-        question.setCreatedAt(LocalDateTime.now());    // when it was asked
+        question.setContent(content);
+        question.setInvestor(investor);
+        question.setLandListing(listing);
+        question.setCreatedAt(LocalDateTime.now());
 
         //Save the question to the database
         questionRepository.save(question);
@@ -138,8 +134,31 @@ public class InvestorService {
 
     }
 
-    public void inquireAboutLand(Long investorId, Long landListingId) {
-        // TO DO: This could send an automated email to the Owner
-        // or create an "Inquiry" record in the database.
+    public void inquireAboutLand(Long investorId, Long listingId) {
+
+//        //Find the investor
+//        Investor investor = investorRepository.findById(investorId)
+//                .orElseThrow(() -> new RuntimeException("Investor not found: " + investorId));
+//
+//        //Find the listing
+//        LandListing listing = landListingRepository.findById(listingId)
+//                .orElseThrow(() -> new RuntimeException("Listing not found: " + listingId));
+//
+//        //Get the owner from the listing
+//        Owner owner = listing.getOwner();
+//
+//        //Build a Message entity
+//        Message message = new Message();
+//        message.setSender(investor);
+//        message.setReceiver(owner);
+//        message.setLandListing(listing);
+//        message.setContent(
+//                "Hello, I am interested in your listing: " + listing.getTitle()
+//                        + ". Please contact me to discuss further."
+//        );
+//        message.setSentAt(new Date());         // timestamp
+//
+//        //Save the message
+//        messageRepository.save(message);
     }
 }
