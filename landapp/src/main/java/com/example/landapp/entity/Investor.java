@@ -18,7 +18,6 @@ public class Investor extends BaseUser {
 
     // Additional investor-specific fields could go here
     // e.g., investmentBudget or preferredRegions
-    private String phoneNumber;
     private String preferredLocation;   // what areas they're interested in
     private BigDecimal investmentBudget;    // budget range
 

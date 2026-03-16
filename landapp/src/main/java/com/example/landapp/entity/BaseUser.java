@@ -33,7 +33,7 @@ public abstract class BaseUser implements UserDetails {
     private String contactNumber; // RESTORED
 
     @Column(nullable = false)
-    private String passwordHash;
+    private String password;
 
     @CreationTimestamp
     @Column(updatable = false)
@@ -51,7 +51,7 @@ public abstract class BaseUser implements UserDetails {
 
     @Override
     public String getPassword() {
-        return this.passwordHash;
+        return this.password;
     }
 
     @Override
