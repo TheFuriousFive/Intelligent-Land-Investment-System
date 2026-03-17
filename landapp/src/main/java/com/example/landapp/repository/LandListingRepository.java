@@ -16,4 +16,6 @@ public interface LandListingRepository extends JpaRepository<LandListing, Long> 
     List<LandListing> findByOwnerIdAndVerificationStatus(Long ownerId, VerificationStatus verificationStatus);
 
     List<LandListing> findByOwnerIdAndStatus(Long ownerId, ListingStatus status);
+
+    List<LandListing> findByStatus(ListingStatus status);
 }
