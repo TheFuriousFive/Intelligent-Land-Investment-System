@@ -8,5 +8,5 @@ public class InvestorRegistrationDTO {
     private String lastName;
     private String email;
     private String contactNumber;
-    private String password; // Raw password to be hashed
+    private String passwordHash; // Raw password to be hashed
 }

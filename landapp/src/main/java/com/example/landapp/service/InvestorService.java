@@ -1,3 +1,25 @@
+
+//    public void searchLandListings(String keyword, Double maxPrice) {
+//        // TO DO: Use landRepository to find matching lands
+//        // e.g., landRepository.findByTitleContainingAndPriceLessThan(...)
+//    }
+//
+//    public void askQuestion(Long investorId, Long landListingId, String questionContent) {
+//        // TO DO: Create a Message entity with type "QUESTION"
+//        // Link it to the Investor (Sender) and the LandListing
+//    }
+//
+//    public void submitReview(Long investorId, Long landListingId, int rating, String reviewText) {
+//        // TO DO: Create a Review entity
+//        // Link it to the Investor and the LandListing
+//    }
+//
+//    public void inquireAboutLand(Long investorId, Long landListingId) {
+//        // TO DO: This could send an automated email to the Owner
+//        // or create an "Inquiry" record in the database.
+//    }
+//}
+//------------------------------------------------------------------------------------------------
 package com.example.landapp.service;
 
 import com.example.landapp.dto.InvestorRegistrationDTO;
@@ -44,6 +66,18 @@ public class InvestorService {
     private OwnerRepository ownerRepository;
 
     @Autowired
+    private UserRepository userRepository;
+
+
+    private LandListingRepository landListingRepository;
+
+    @Autowired
+    private QuestionRepository questionRepository;
+
+    @Autowired
+    private ReviewRepository reviewRepository;
+
+    @Autowired
     private InvestorMapper investorMapper;
 
     @Autowired
@@ -51,9 +85,6 @@ public class InvestorService {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
-
-
-
 
     public List<LandListingResponseDTO> searchLandListings(String keyword, Double maxPrice) {
 
@@ -161,4 +192,6 @@ public class InvestorService {
 //        //Save the message
 //        messageRepository.save(message);
     }
+
 }
+
