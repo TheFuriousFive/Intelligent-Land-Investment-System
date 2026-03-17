@@ -20,4 +20,8 @@ public class Question extends Message {
     @CreationTimestamp //Automatically set the time when insert
     @Column(updatable = false, nullable = false) //Ensure its never changed or null
     private LocalDateTime createdAt;
+
+    @ManyToOne
+    @JoinColumn(name = "investorId", nullable = false)
+    private Investor investor;
 }

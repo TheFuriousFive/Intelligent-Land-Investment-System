@@ -78,7 +78,7 @@ public class OwnerController {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         Owner currentOwner = (Owner) authentication.getPrincipal();
 
-        ownerService.answerQuestion(questionId, request.content());
+        ownerService.answerQuestion(questionId, currentOwner.getId(),request.content());
         return new ResponseEntity<>("Question answered successfully", HttpStatus.OK);
     }
 
