@@ -1,8 +1,6 @@
 package com.example.landapp.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -18,6 +16,14 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Answer extends Message {
+
+    @ManyToOne
+    @JoinColumn(name = "questionId", nullable = false)
+    private Question question;
+
+    @ManyToOne
+    @JoinColumn(name = "ownerId", nullable = false)
+    private Owner owner;
 
     @CreationTimestamp
     @Column(updatable = false, nullable = false)
