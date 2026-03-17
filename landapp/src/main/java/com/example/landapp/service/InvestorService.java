@@ -69,13 +69,6 @@ public class InvestorService {
     private UserRepository userRepository;
 
 
-    private LandListingRepository landListingRepository;
-
-    @Autowired
-    private QuestionRepository questionRepository;
-
-    @Autowired
-    private ReviewRepository reviewRepository;
 
     @Autowired
     private InvestorMapper investorMapper;
