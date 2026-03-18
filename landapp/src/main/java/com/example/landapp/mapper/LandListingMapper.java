@@ -55,6 +55,8 @@ public class LandListingMapper {
         dto.setLandType(land.getLandType());
         dto.setPostedDate(land.getPostedDate());
         dto.setVerifiedAt(land.getVerifiedAt());
+        dto.setImageUrls(land.getImageUrls());
+        dto.setDeedDocumentUrls(land.getDeedDocumentUrls());
 
         // Convert the Enum to a String safely
         if (land.getStatus() != null) {
