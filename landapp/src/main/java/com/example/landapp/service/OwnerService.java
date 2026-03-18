@@ -45,6 +45,9 @@ public class OwnerService {
     @Autowired
     private AnswerRepository answerRepository;
 
+    @Autowired
+    private MapDataGetting mapDataService;
+
 
     // 1. CREATE Listing
     @Transactional
@@ -55,6 +58,10 @@ public class OwnerService {
         LandListing listing = landMapper.toEntity(dto);
 
         listing.setOwner(owner);
+
+        MapDataGetting.MapDataResult mapResult = mapDataService.getLandContext(dto.getLatitude(), dto.getLongitude());
+
+        landMapper.addMapDataToEntity(listing, mapResult);
 
         LandListing savedListing = landRepository.save(listing);
 
