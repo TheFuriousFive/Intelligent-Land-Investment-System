@@ -3,6 +3,7 @@ package com.example.landapp.mapper;
 import com.example.landapp.dto.LandListingCreateDTO;
 import com.example.landapp.dto.LandListingResponseDTO;
 import com.example.landapp.entity.LandListing;
+import com.example.landapp.service.MapDataGetting;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -19,9 +20,25 @@ public class LandListingMapper {
         listing.setArea(dto.getArea());
         listing.setLocation(dto.getLocation());
         listing.setLandType(dto.getLandType());
+        listing.setLatitude(dto.getLatitude());
+        listing.setLongitude(dto.getLongitude());
 
         // owner, status, and postedDate are handled in the Service or @PrePersist
         return listing;
+    }
+
+    public void addMapDataToEntity(LandListing entity, MapDataGetting.MapDataResult mapData) {
+        if (mapData == null) return;
+
+        // Saving specific OSM audit data to the database
+        entity.setOsmLandUse(mapData.getSuggestedLandType());
+        entity.setOsmAmenities(mapData.getAmenities());
+        entity.setOsmAccessRoad(mapData.getAccessRoad());
+
+        // Fill the main LandType if the user left it empty on the website form
+        if (entity.getLandType() == null || entity.getLandType().isEmpty()) {
+            entity.setLandType(mapData.getSuggestedLandType());
+        }
     }
 
     // 2. Entity -> Response DTO (For Reading)
