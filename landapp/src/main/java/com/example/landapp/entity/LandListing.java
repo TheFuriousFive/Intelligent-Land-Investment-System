@@ -64,10 +64,10 @@ public class LandListing {
     private LandAuthenticator landAuthenticator;
 
     //Overpass inputs
-    @Column(precision = 10, scale = 8)
+    @Column(name= "latitude")
     private Double latitude;
 
-    @Column(precision = 11, scale = 8)
+    @Column(name = "longitude")
     private Double longitude;
 
     // New fields for Overpass data
