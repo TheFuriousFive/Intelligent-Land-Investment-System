@@ -17,6 +17,7 @@ import com.example.landapp.repository.QuestionRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -50,24 +51,7 @@ public class OwnerService {
 
 
     // 1. CREATE Listing
-    @Transactional
-    public LandListingResponseDTO createListing(LandListingCreateDTO dto) {
-        Owner owner = ownerRepository.findById(dto.getOwnerId())
-                .orElseThrow(() -> new RuntimeException("Owner not found"));
-
-        LandListing listing = landMapper.toEntity(dto);
-
-        listing.setOwner(owner);
-
-        MapDataGetting.MapDataResult mapResult = mapDataService.getLandContext(dto.getLatitude(), dto.getLongitude());
-
-        landMapper.addMapDataToEntity(listing, mapResult);
-
-        LandListing savedListing = landRepository.save(listing);
-
-        return landMapper.toResponseDTO(savedListing);
-
-    }
+    
 
     // 2. DELETE Listing
     @Transactional

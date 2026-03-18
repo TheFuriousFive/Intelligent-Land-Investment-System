@@ -39,7 +39,7 @@ public class OwnerController {
             dto.setOwnerId(currentOwner.getId());
 
             // Pass the files to the service along with the DTO!
-//            ownerService.createListing(dto, images, deedDocument);
+            ownerService.createListing(dto, images, deedDocument);
 
             return new ResponseEntity<>("Land listing created successfully", HttpStatus.CREATED);
         } catch (Exception e) {

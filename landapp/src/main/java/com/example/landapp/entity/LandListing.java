@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import java.util.Date;
 import java.math.BigDecimal;
+import java.util.List;
 
 @Entity
 @Table(name = "land_listings")
@@ -79,6 +80,18 @@ public class LandListing {
 
     @Column(name = "osm_access_road")
     private String osmAccessRoad; // type of road leading to land
+
+    // --- NEW FIELDS FOR SUPABASE URLS ---
+
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "land_listing_images", joinColumns = @JoinColumn(name = "listing_id"))
+    @Column(name = "image_url", nullable = false)
+    private List<String> imageUrls;
+
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "land_listing_documents", joinColumns = @JoinColumn(name = "listing_id"))
+    @Column(name = "document_url", nullable = false)
+    private List<String> deedDocumentUrls;
 
     @PrePersist
     protected void onCreate() {
