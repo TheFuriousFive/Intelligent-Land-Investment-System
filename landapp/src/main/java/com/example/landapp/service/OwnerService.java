@@ -51,7 +51,48 @@ public class OwnerService {
 
 
     // 1. CREATE Listing
-    
+    // Add this injection at the top of OwnerService
+    @Autowired
+    private SupabaseStorageService supabaseStorageService;
+
+    // 1. CREATE Listing (Updated Signature)
+    @Transactional
+    public LandListingResponseDTO createListing(LandListingCreateDTO dto, List<MultipartFile> images, MultipartFile deedDocument) throws Exception {
+        Owner owner = ownerRepository.findById(dto.getOwnerId())
+                .orElseThrow(() -> new RuntimeException("Owner not found"));
+
+        LandListing listing = landMapper.toEntity(dto);
+        listing.setOwner(owner);
+
+        // --- NEW: UPLOAD FILES TO SUPABASE ---
+
+        // 1. Upload Images
+        List<String> imageUrls = new java.util.ArrayList<>();
+        if (images != null && !images.isEmpty()) {
+            for (MultipartFile image : images) {
+                String url = supabaseStorageService.uploadFile(image);
+                imageUrls.add(url);
+            }
+        }
+        listing.setImageUrls(imageUrls);
+
+        // 2. Upload Deed Document
+        List<String> documentUrls = new java.util.ArrayList<>();
+        if (deedDocument != null && !deedDocument.isEmpty()) {
+            String deedUrl = supabaseStorageService.uploadFile(deedDocument);
+            documentUrls.add(deedUrl);
+        }
+        listing.setDeedDocumentUrls(documentUrls);
+
+        // --- END FILE UPLOADS ---
+
+        MapDataGetting.MapDataResult mapResult = mapDataService.getLandContext(dto.getLatitude(), dto.getLongitude());
+        landMapper.addMapDataToEntity(listing, mapResult);
+
+        LandListing savedListing = landRepository.save(listing);
+
+        return landMapper.toResponseDTO(savedListing);
+    }
 
     // 2. DELETE Listing
     @Transactional
