@@ -63,6 +63,23 @@ public class LandListing {
     @JoinColumn(name = "authenticator_id", nullable = true)
     private LandAuthenticator landAuthenticator;
 
+    //Overpass inputs
+    @Column(precision = 10, scale = 8)
+    private Double latitude;
+
+    @Column(precision = 11, scale = 8)
+    private Double longitude;
+
+    // New fields for Overpass data
+    @Column(name = "osm_land_use")
+    private String osmLandUse; // e.g., residential, meadow, forest
+
+    @Column(name = "osm_amenities", columnDefinition = "TEXT")
+    private String osmAmenities; // comma-separated list of nearby features
+
+    @Column(name = "osm_access_road")
+    private String osmAccessRoad; // type of road leading to land
+
     @PrePersist
     protected void onCreate() {
         this.postedDate = new Date();
