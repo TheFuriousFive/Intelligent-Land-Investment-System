@@ -7,10 +7,12 @@ import com.example.landapp.entity.Owner;
 import com.example.landapp.service.OwnerService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -22,17 +24,27 @@ public class OwnerController {
     private OwnerService ownerService;
 
     /*
-      This is for the Owner to create a new land listing.
+      This is for the Owner to create a new land listing WITH images and deeds.
      */
-    @PostMapping("/listings")
-    public ResponseEntity<String> createListing(@RequestBody LandListingCreateDTO dto) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        Owner currentOwner = (Owner) authentication.getPrincipal();
+    @PostMapping(value = "/listings", consumes = { MediaType.MULTIPART_FORM_DATA_VALUE })
+    public ResponseEntity<String> createListing(
+            @RequestPart("landData") LandListingCreateDTO dto,
+            @RequestPart("images") List<MultipartFile> images,
+            @RequestPart("deedDocument") MultipartFile deedDocument) {
 
-        dto.setOwnerId(currentOwner.getId());
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            Owner currentOwner = (Owner) authentication.getPrincipal();
 
-        ownerService.createListing(dto);
-        return new ResponseEntity<>("Land listing created successfully", HttpStatus.CREATED);
+            dto.setOwnerId(currentOwner.getId());
+
+            // Pass the files to the service along with the DTO!
+            ownerService.createListing(dto, images, deedDocument);
+
+            return new ResponseEntity<>("Land listing created successfully", HttpStatus.CREATED);
+        } catch (Exception e) {
+            return new ResponseEntity<>("Failed to create listing: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 
     /*

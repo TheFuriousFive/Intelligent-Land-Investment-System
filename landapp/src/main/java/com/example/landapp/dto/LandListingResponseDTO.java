@@ -2,6 +2,7 @@ package com.example.landapp.dto;
 import lombok.*;
 import java.math.BigDecimal;
 import java.util.Date;
+import java.util.List;
 
 @Data
 public class LandListingResponseDTO {
@@ -30,4 +31,7 @@ public class LandListingResponseDTO {
     // The professional registration number of the authenticator
     // Useful for the investor to verify the legitimacy of who validated the listing
     private String authenticatorRegNumber;
+
+    private List<String> imageUrls;
+    private List<String> deedDocumentUrls;
 }
