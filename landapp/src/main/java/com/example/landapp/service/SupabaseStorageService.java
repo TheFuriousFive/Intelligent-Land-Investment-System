@@ -35,6 +35,7 @@ public class SupabaseStorageService {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(uploadEndpoint))
                 .header("Authorization", "Bearer " + supabaseKey)
+                .header("apikey", supabaseKey)
                 .header("Content-Type", file.getContentType()) // e.g., image/jpeg or application/pdf
                 .POST(HttpRequest.BodyPublishers.ofByteArray(file.getBytes()))
                 .build();
