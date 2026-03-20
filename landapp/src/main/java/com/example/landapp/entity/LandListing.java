@@ -93,6 +93,10 @@ public class LandListing {
     @Column(name = "document_url", nullable = false)
     private List<String> deedDocumentUrls;
 
+    //payment related field
+    @Column(name = "payment_session_id")
+    private String paymentSessionId;
+
     @PrePersist
     protected void onCreate() {
         this.postedDate = new Date();
@@ -102,7 +106,7 @@ public class LandListing {
         // Every listing starts as PENDING_VERIFICATION when first created
         // Matches your State Machine: Owner Creates Listing → Draft → Upload Docs → Pending_Verification
         if (this.verificationStatus == null) {
-            this.verificationStatus = VerificationStatus.PENDING_VERIFICATION;
+            this.verificationStatus = VerificationStatus.PENDING_PAYMENT;
         }
     }
 }
