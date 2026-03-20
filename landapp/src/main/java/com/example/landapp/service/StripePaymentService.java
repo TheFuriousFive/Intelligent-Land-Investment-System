@@ -6,6 +6,7 @@ import com.example.landapp.entity.VerificationStatus;
 import com.example.landapp.repository.LandListingRepository;
 import com.stripe.exception.StripeException;
 import com.stripe.model.Customer;
+import com.stripe.model.Event;
 import com.stripe.model.checkout.Session;
 import com.stripe.param.CustomerCreateParams;
 import com.stripe.param.checkout.SessionCreateParams;
@@ -99,6 +100,39 @@ public class StripePaymentService {
         } catch (StripeException e) {
             log.error("Stripe API Error: ", e);
             throw new RuntimeException("Failed to create Stripe checkout session", e);
+        }
+    }
+
+    // ---------------------------------------------------------
+    // THE WEBHOOK LOGIC: What happens when the money clears
+    // ---------------------------------------------------------
+    @Transactional
+    public void capturePayment(Event event) {
+        // We only care about the event when a checkout is successfully completed
+        if ("checkout.session.completed".equals(event.getType())) {
+
+            // Extract the session object from Stripe's JSON payload
+            Session session = (Session) event.getDataObjectDeserializer().getObject().orElse(null);
+            if (session == null) {
+                log.error("Webhook Error: Could not deserialize Stripe session.");
+                return;
+            }
+
+            String sessionId = session.getId();
+
+            // Find the exact land listing in your database that matches this payment
+            LandListing listing = landRepository.findByPaymentSessionId(sessionId)
+                    .orElseThrow(() -> new RuntimeException("Listing not found for Stripe session: " + sessionId));
+
+            // BOOM! PAYMENT SUCCESSFUL!
+            // Move it out of PENDING_PAYMENT and into the Authenticator's Queue!
+            listing.setVerificationStatus(VerificationStatus.PENDING_VERIFICATION);
+            landRepository.save(listing);
+
+            log.info("✅ Payment confirmed via Webhook! Listing {} is now PENDING_VERIFICATION.", listing.getId());
+        } else {
+            // Optional: Log other events if you want to see what else Stripe sends
+            log.info("Unhandled Stripe event type: {}", event.getType());
         }
     }
 }
