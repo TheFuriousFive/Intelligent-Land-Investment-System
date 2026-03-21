@@ -1,9 +1,6 @@
 package com.example.landapp.service;
 
-import com.example.landapp.dto.LandListingCreateDTO;
-import com.example.landapp.dto.LandListingResponseDTO;
-import com.example.landapp.dto.OwnerRegistrationDTO;
-import com.example.landapp.dto.OwnerResponseDTO;
+import com.example.landapp.dto.*;
 import com.example.landapp.entity.Answer;
 import com.example.landapp.entity.LandListing;
 import com.example.landapp.entity.Owner;
@@ -54,6 +51,18 @@ public class OwnerService {
     // Add this injection at the top of OwnerService
     @Autowired
     private SupabaseStorageService supabaseStorageService;
+
+    @Transactional
+    public void updateOwnerProfile(Long ownerId, OwnerUpdateDTO updateDto) {
+        Owner owner = ownerRepository.findById(ownerId)
+                .orElseThrow(() -> new RuntimeException("Owner not found with ID: " + ownerId));
+
+        if (updateDto.firstName() != null) owner.setFirstName(updateDto.firstName());
+        if (updateDto.lastName() != null) owner.setLastName(updateDto.lastName());
+        if (updateDto.contactNumber() != null) owner.setContactNumber(updateDto.contactNumber());
+
+        ownerRepository.save(owner);
+    }
 
     // 1. CREATE Listing (Updated Signature)
     @Transactional
