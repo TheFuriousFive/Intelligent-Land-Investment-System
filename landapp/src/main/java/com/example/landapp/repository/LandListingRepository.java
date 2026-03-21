@@ -6,6 +6,7 @@ import com.example.landapp.entity.VerificationStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface LandListingRepository extends JpaRepository<LandListing, Long> {
@@ -18,4 +19,6 @@ public interface LandListingRepository extends JpaRepository<LandListing, Long> 
     List<LandListing> findByOwnerIdAndStatus(Long ownerId, ListingStatus status);
 
     List<LandListing> findByStatus(ListingStatus status);
+
+    Optional<LandListing> findByPaymentSessionId(String paymentSessionId);
 }

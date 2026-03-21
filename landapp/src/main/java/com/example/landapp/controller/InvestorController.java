@@ -1,5 +1,6 @@
 package com.example.landapp.controller;
 
+import com.example.landapp.dto.LandListingResponseDTO;
 import com.example.landapp.entity.Investor;
 import com.example.landapp.service.InvestorService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -8,6 +9,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/landapp/investors")
@@ -18,12 +21,15 @@ public class InvestorController {
 
     // 2. SEARCH LAND (Filtering)
     @GetMapping("/search")
-    public ResponseEntity<String> searchLand(
+    public ResponseEntity<List<LandListingResponseDTO>> searchLand(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Double maxPrice) {
 
-        investorService.searchLandListings(keyword, maxPrice);
-        return new ResponseEntity<>("Search criteria received (Logic pending in Service)", HttpStatus.OK);
+// 1. Capture the actual results from the service
+        List<LandListingResponseDTO> searchResults = investorService.searchLandListings(keyword, maxPrice);
+
+        // 2. Return the results as JSON!
+        return new ResponseEntity<>(searchResults, HttpStatus.OK);
     }
 
     // 3. ASK A QUESTION
