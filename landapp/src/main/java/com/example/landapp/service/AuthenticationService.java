@@ -1,10 +1,12 @@
 package com.example.landapp.service;
 
 import com.example.landapp.dto.InvestorRegistrationDTO;
+import com.example.landapp.dto.LandAuthenticatorRegistrationDTO;
 import com.example.landapp.dto.LoginDTO;
 import com.example.landapp.dto.OwnerRegistrationDTO;
 import com.example.landapp.entity.BaseUser;
 import com.example.landapp.entity.Investor;
+import com.example.landapp.entity.LandAuthenticator;
 import com.example.landapp.entity.Owner;
 import com.example.landapp.repository.UserRepository;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -55,6 +57,22 @@ public class AuthenticationService {
         investor.setPasswordHash(passwordEncoder.encode(input.getPasswordHash()));
 
         return userRepository.save(investor);
+    }
+
+    public LandAuthenticator registerAuthenticator(LandAuthenticatorRegistrationDTO input) {
+        LandAuthenticator authenticator = new LandAuthenticator();
+        authenticator.setFirstName(input.getFirstName());
+        authenticator.setLastName(input.getLastName());
+        authenticator.setEmail(input.getEmail());
+        authenticator.setContactNumber(input.getContactNumber());
+
+        // This is unique to the authenticator
+        authenticator.setProfessionalRegNumber(input.getProfessionalRegNumber());
+
+        // Hash the password before saving!
+        authenticator.setPasswordHash(passwordEncoder.encode(input.getPasswordHash()));
+
+        return userRepository.save(authenticator);
     }
 
     // --- AUTHENTICATION (LOGIN) METHOD ---

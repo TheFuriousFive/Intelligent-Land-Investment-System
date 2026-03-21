@@ -3,6 +3,7 @@ package com.example.landapp.controller;
 import com.example.landapp.dto.LandListingCreateDTO;
 import com.example.landapp.dto.LandListingResponseDTO;
 import com.example.landapp.dto.OwnerResponseDTO;
+import com.example.landapp.dto.OwnerUpdateDTO;
 import com.example.landapp.entity.Owner;
 import com.example.landapp.service.OwnerService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -117,6 +118,15 @@ public class OwnerController {
 
         OwnerResponseDTO response = ownerService.getOwnerById(currentOwner.getId());
         return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
+    @PutMapping("/me")
+    public ResponseEntity<String> updateOwnerProfile(@RequestBody OwnerUpdateDTO updateDto) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        Owner currentOwner = (Owner) authentication.getPrincipal();
+
+        ownerService.updateOwnerProfile(currentOwner.getId(), updateDto);
+        return new ResponseEntity<>("Owner profile updated successfully", HttpStatus.OK);
     }
 }
 

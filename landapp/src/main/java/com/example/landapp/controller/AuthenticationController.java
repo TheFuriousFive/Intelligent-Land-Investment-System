@@ -3,6 +3,7 @@ package com.example.landapp.controller;
 import com.example.landapp.dto.*;
 import com.example.landapp.entity.BaseUser;
 import com.example.landapp.entity.Investor;
+import com.example.landapp.entity.LandAuthenticator;
 import com.example.landapp.entity.Owner;
 import com.example.landapp.service.AuthenticationService;
 import com.example.landapp.service.JwtService;
@@ -40,6 +41,12 @@ public class AuthenticationController {
         return ResponseEntity.ok(registeredInvestor);
     }
 
+    @PostMapping("/signup/authenticator")
+    public ResponseEntity<LandAuthenticator> registerAuthenticator(@RequestBody LandAuthenticatorRegistrationDTO registerDto) {
+        LandAuthenticator registeredAuthenticator = authenticationService.registerAuthenticator(registerDto);
+        return ResponseEntity.ok(registeredAuthenticator);
+    }
+
     // 3. LOGIN (Handles all user types!)
     @PostMapping("/login")
     public ResponseEntity<LoginResponseDTO> authenticate(@RequestBody LoginDTO loginDto) {
@@ -53,6 +60,8 @@ public class AuthenticationController {
         String userType = "UNKNOWN";
         if (authenticatedUser instanceof Owner) {
             userType = "OWNER";
+        } else if (authenticatedUser instanceof LandAuthenticator) {
+            userType = "AUTHENTICATOR";
         } else if (authenticatedUser instanceof Investor) {
             userType = "INVESTOR";
         }
@@ -86,6 +95,8 @@ public class AuthenticationController {
             response.put("userType", "OWNER");
         } else if (currentUser instanceof Investor) {
             response.put("userType", "INVESTOR");
+        } else if (currentUser instanceof LandAuthenticator) {
+            response.put("userType", "AUTHENTICATOR");
         } else {
             response.put("userType", "UNKNOWN");
         }
