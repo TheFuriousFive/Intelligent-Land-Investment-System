@@ -1,5 +1,6 @@
 package com.example.landapp.service;
 
+import com.example.landapp.dto.AuthenticatorUpdateDTO;
 import com.example.landapp.entity.LandAuthenticator;
 import com.example.landapp.entity.LandListing;
 import com.example.landapp.repository.LandAuthenticatorRepository;
@@ -23,6 +24,30 @@ public class LandAuthenticatorService {
         // Here you would normally hash the password before saving
         authenticator.setPasswordHash("HASHED_" + authenticator.getPasswordHash());
         return authenticatorRepository.save(authenticator);
+    }
+
+    @Transactional
+    public void updateAuthenticatorProfile(Long authenticatorId, AuthenticatorUpdateDTO updateDto) {
+        // 1. Find the exact authenticator in the database
+        LandAuthenticator authenticator = authenticatorRepository.findById(authenticatorId)
+                .orElseThrow(() -> new RuntimeException("Authenticator not found with ID: " + authenticatorId));
+
+        // 2. Update only the safe fields using standard GETTERS
+        if (updateDto.getFirstName() != null) {
+            authenticator.setFirstName(updateDto.getFirstName());
+        }
+        if (updateDto.getLastName() != null) {
+            authenticator.setLastName(updateDto.getLastName());
+        }
+        if (updateDto.getContactNumber() != null) {
+            authenticator.setContactNumber(updateDto.getContactNumber());
+        }
+        if (updateDto.getProfessionalRegNumber() != null) {
+            authenticator.setProfessionalRegNumber(updateDto.getProfessionalRegNumber());
+        }
+
+        // 3. Save the changes
+        authenticatorRepository.save(authenticator);
     }
 
     // 2. The Core Method: Authenticate Land!
