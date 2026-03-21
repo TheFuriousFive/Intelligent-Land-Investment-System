@@ -24,11 +24,13 @@ package com.example.landapp.service;
 
 import com.example.landapp.dto.InvestorRegistrationDTO;
 import com.example.landapp.dto.InvestorResponseDTO;
+import com.example.landapp.dto.InvestorUpdateDTO;
 import com.example.landapp.dto.LandListingResponseDTO;
 import com.example.landapp.entity.*;
 import com.example.landapp.mapper.InvestorMapper;
 import com.example.landapp.mapper.LandListingMapper;
 import com.example.landapp.repository.*;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -78,6 +80,23 @@ public class InvestorService {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Transactional
+    public void updateInvestorProfile(Long investorId, InvestorUpdateDTO updateDto) {
+        Investor investor = investorRepository.findById(investorId)
+                .orElseThrow(() -> new RuntimeException("Investor not found with ID: " + investorId));
+
+        // Base user fields
+        if (updateDto.firstName() != null) investor.setFirstName(updateDto.firstName());
+        if (updateDto.lastName() != null) investor.setLastName(updateDto.lastName());
+        if (updateDto.contactNumber() != null) investor.setContactNumber(updateDto.contactNumber());
+
+        // Investor specific fields
+        if (updateDto.preferredLocation() != null) investor.setPreferredLocation(updateDto.preferredLocation());
+        if (updateDto.investmentBudget() != null) investor.setInvestmentBudget(updateDto.investmentBudget());
+
+        investorRepository.save(investor);
+    }
 
     public List<LandListingResponseDTO> searchLandListings(String keyword, Double maxPrice) {
 
