@@ -22,10 +22,7 @@
 //------------------------------------------------------------------------------------------------
 package com.example.landapp.service;
 
-import com.example.landapp.dto.InvestorRegistrationDTO;
-import com.example.landapp.dto.InvestorResponseDTO;
-import com.example.landapp.dto.InvestorUpdateDTO;
-import com.example.landapp.dto.LandListingResponseDTO;
+import com.example.landapp.dto.*;
 import com.example.landapp.entity.*;
 import com.example.landapp.mapper.InvestorMapper;
 import com.example.landapp.mapper.LandListingMapper;
@@ -203,6 +200,16 @@ public class InvestorService {
 //
 //        //Save the message
 //        messageRepository.save(message);
+    }
+
+    public InvestorResponseDTO getInvestorById(Long investorId) {
+
+
+
+
+        Investor investor = investorRepository.findById(investorId)
+                .orElseThrow(() -> new RuntimeException("Investor not found"));
+        return investorMapper.toResponseDTO(investor);
     }
 
 }
