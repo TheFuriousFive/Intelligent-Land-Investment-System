@@ -11,4 +11,6 @@ public interface AnswerRepository extends JpaRepository<Answer, Long> {
 
     // Find an answer by the Question ID it belongs to
     Optional<Answer> findByLandListing_Id(Long landListingId);
+
+    Optional<Answer> findByQuestionId(Long questionId);
 }
