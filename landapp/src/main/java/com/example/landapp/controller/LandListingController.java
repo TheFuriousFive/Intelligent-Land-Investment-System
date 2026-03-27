@@ -38,4 +38,11 @@ public class LandListingController {
         List<ReviewResponseDTO> responses = landListingService.getListingReviews(listingId);
         return new ResponseEntity<>(responses, HttpStatus.OK);
     }
+
+    // 4. Fetch ALL land listings for the public catalog
+    @GetMapping
+    public ResponseEntity<List<LandListingResponseDTO>> getAllListings() {
+        List<LandListingResponseDTO> responses = landListingService.getAllListings();
+        return new ResponseEntity<>(responses, HttpStatus.OK);
+    }
 }
