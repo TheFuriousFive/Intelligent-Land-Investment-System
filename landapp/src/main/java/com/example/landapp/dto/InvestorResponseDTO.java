@@ -9,5 +9,6 @@ public class InvestorResponseDTO {
     private String lastName;
     private String email;
     private String contactNumber;
+    private String ricCode;
     // Password is safely excluded!
 }
