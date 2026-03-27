@@ -41,7 +41,7 @@ public class TrustScoreService {
         totalScore += Math.min(salesScore, 40.0);
 
         //  Authenticated Listings
-        List<LandListing> verifiedListings = landRepository.findByOwnerIdAndVerificationStatus(ownerId, VerificationStatus.VERIFIED);
+        List<LandListing> verifiedListings = landRepository.findByOwnerIdAndVerificationStatus(ownerId, VerificationStatus.APPROVED);
         double verificationScore = verifiedListings.size() * 10.0;
         totalScore += Math.min(verificationScore, 40.0);
 
