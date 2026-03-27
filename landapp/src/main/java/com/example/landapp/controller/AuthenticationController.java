@@ -73,6 +73,7 @@ public class AuthenticationController {
                 .userId(authenticatedUser.getId())
                 .firstName(authenticatedUser.getFirstName())
                 .userType(userType)
+                .ricCode(authenticatedUser.getRicCode())
                 .build();
 
         return ResponseEntity.ok(loginResponse);
