@@ -102,4 +102,16 @@ public class LandListingService {
             return dto;
         }).collect(Collectors.toList());
     }
+
+    // 4. GET ALL PUBLIC LISTINGS
+    public List<LandListingResponseDTO> getAllListings() {
+        // Fetch all listings from the database.
+        // If you have a status enum, it's highly recommended to do:
+        // landListingRepository.findByStatus(ListingStatus.AVAILABLE);
+        List<LandListing> listings = landListingRepository.findAll();
+
+        return listings.stream()
+                .map(landListingMapper::toResponseDTO)
+                .collect(Collectors.toList());
+    }
 }
