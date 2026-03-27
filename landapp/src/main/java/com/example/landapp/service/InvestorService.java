@@ -78,6 +78,9 @@ public class InvestorService {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private InquiryRepository inquiryRepository;
+
     @Transactional
     public void updateInvestorProfile(Long investorId, InvestorUpdateDTO updateDto) {
         Investor investor = investorRepository.findById(investorId)
@@ -174,34 +177,51 @@ public class InvestorService {
 
     }
 
-    public void inquireAboutLand(Long investorId, Long listingId) {
+    // 1. Create the Inquiry (Simplified, no longer returns instant owner details)
+    public void inquireAboutLand(Long investorId, Long listingId, String customMessage) {
+        if (inquiryRepository.existsByInvestorIdAndLandListingId(investorId, listingId)) {
+            throw new RuntimeException("You have already sent an inquiry for this property!");
+        }
 
-//        //Find the investor
-//        Investor investor = investorRepository.findById(investorId)
-//                .orElseThrow(() -> new RuntimeException("Investor not found: " + investorId));
-//
-//        //Find the listing
-//        LandListing listing = landListingRepository.findById(listingId)
-//                .orElseThrow(() -> new RuntimeException("Listing not found: " + listingId));
-//
-//        //Get the owner from the listing
-//        Owner owner = listing.getOwner();
-//
-//        //Build a Message entity
-//        Message message = new Message();
-//        message.setSender(investor);
-//        message.setReceiver(owner);
-//        message.setLandListing(listing);
-//        message.setContent(
-//                "Hello, I am interested in your listing: " + listing.getTitle()
-//                        + ". Please contact me to discuss further."
-//        );
-//        message.setSentAt(new Date());         // timestamp
-//
-//        //Save the message
-//        messageRepository.save(message);
+        Investor investor = investorRepository.findById(investorId).orElseThrow();
+        LandListing listing = landListingRepository.findById(listingId).orElseThrow();
+
+        Inquiry inquiry = new Inquiry();
+        inquiry.setInvestor(investor);
+        inquiry.setLandListing(listing);
+        inquiry.setOwner(listing.getOwner());
+        inquiry.setMessage(customMessage);
+        inquiryRepository.save(inquiry);
     }
 
+    // 2. Fetch Investor's History (Generates the dynamic failsafe messages!)
+    public List<InvestorInquiryResponseDTO> getInvestorInquiries(Long investorId) {
+        List<Inquiry> inquiries = inquiryRepository.findByInvestorIdOrderByCreatedAtDesc(investorId);
+
+        return inquiries.stream().map(inquiry -> {
+            InvestorInquiryResponseDTO dto = new InvestorInquiryResponseDTO();
+            dto.setInquiryId(inquiry.getId());
+            dto.setLandTitle(inquiry.getLandListing().getTitle());
+            dto.setOwnerFullName(inquiry.getOwner().getFirstName() + " " + inquiry.getOwner().getLastName());
+            dto.setStatus(inquiry.getStatus());
+            dto.setCreatedAt(inquiry.getCreatedAt());
+
+            // THE MAGIC: Generate the contextual message for the Next.js UI
+            if (inquiry.getStatus() == InquiryStatus.PENDING) {
+                dto.setPlatformUpdateMessage("Your inquiry has been sent! Waiting for the owner to review it.");
+            } else if (inquiry.getStatus() == InquiryStatus.CONTACTED) {
+                String methodStr = inquiry.getChosenContactMethod() == ContactMethod.EMAIL ? "an email" : "a phone call";
+                String ownerPhone = inquiry.getOwner().getContactNumber();
+
+                dto.setPlatformUpdateMessage(
+                        "The owner will send " + methodStr + " to contact you. " +
+                                "If the owner doesn't contact you within the relevant time period, please contact them directly at: " + ownerPhone
+                );
+            }
+
+            return dto;
+        }).toList();
+    }
     public InvestorResponseDTO getInvestorById(Long investorId) {
 
 

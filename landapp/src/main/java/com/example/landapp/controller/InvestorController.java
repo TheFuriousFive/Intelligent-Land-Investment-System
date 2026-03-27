@@ -69,7 +69,7 @@ public class InvestorController {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         Investor currentInvestor = (Investor) authentication.getPrincipal();
 
-        investorService.inquireAboutLand(currentInvestor.getId(), listingId);
+//        investorService.inquireAboutLand(currentInvestor.getId(), listingId);
         return new ResponseEntity<>("Inquiry sent to the owner", HttpStatus.OK);
     }
 
