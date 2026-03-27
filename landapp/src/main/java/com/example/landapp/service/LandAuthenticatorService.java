@@ -3,11 +3,14 @@ package com.example.landapp.service;
 import com.example.landapp.dto.AuthenticatorUpdateDTO;
 import com.example.landapp.entity.LandAuthenticator;
 import com.example.landapp.entity.LandListing;
+import com.example.landapp.entity.VerificationStatus;
 import com.example.landapp.repository.LandAuthenticatorRepository;
 import com.example.landapp.repository.LandListingRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Date;
 
 @Service
 public class LandAuthenticatorService {
@@ -67,9 +70,14 @@ public class LandAuthenticatorService {
         if (isApproved) {
             // listing.setVerificationStatus("APPROVED");
             // listing.setVerifiedBy(authenticator);
+            listing.setVerificationStatus(VerificationStatus.APPROVED);
         } else {
             // listing.setVerificationStatus("REJECTED");
+            listing.setVerificationStatus(VerificationStatus.REJECTED);
         }
+
+        listing.setLandAuthenticator(authenticator);
+        listing.setVerifiedAt(new Date());
 
         // Save the updated listing
         landRepository.save(listing);
