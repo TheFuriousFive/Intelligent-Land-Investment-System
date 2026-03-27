@@ -1,9 +1,6 @@
 package com.example.landapp.controller;
 
-import com.example.landapp.dto.InvestorResponseDTO;
-import com.example.landapp.dto.InvestorUpdateDTO;
-import com.example.landapp.dto.LandListingResponseDTO;
-import com.example.landapp.dto.OwnerResponseDTO;
+import com.example.landapp.dto.*;
 import com.example.landapp.entity.Investor;
 import com.example.landapp.entity.Owner;
 import com.example.landapp.service.InvestorService;
@@ -50,16 +47,28 @@ public class InvestorController {
     }
 
     // 4. SUBMIT A REVIEW
-    @PostMapping("/listings/{listingId}/reviews")
-    public ResponseEntity<String> submitReview(
+    @PostMapping("/listings/{listingId}/inquiry")
+    public ResponseEntity<String> inquire(
             @PathVariable Long listingId,
-            @RequestBody ReviewRequest request) {
+            @RequestBody InquiryRequest request) {
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         Investor currentInvestor = (Investor) authentication.getPrincipal();
 
-        investorService.submitReview(currentInvestor.getId(), listingId, request.rating(), request.reviewText());
-        return new ResponseEntity<>("Review submitted successfully", HttpStatus.CREATED);
+        investorService.inquireAboutLand(currentInvestor.getId(), listingId, request.message());
+
+        // Changed to just return a simple success string, since the detailed view is now in their dashboard
+        return new ResponseEntity<>("Inquiry sent successfully to the owner.", HttpStatus.CREATED);
+    }
+
+    // 2. Investor checks their inquiries (Where they see the failsafe number!)
+    @GetMapping("/inquiries")
+    public ResponseEntity<List<InvestorInquiryResponseDTO>> getMyInquiries() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        Investor currentInvestor = (Investor) authentication.getPrincipal();
+
+        List<InvestorInquiryResponseDTO> responses = investorService.getInvestorInquiries(currentInvestor.getId());
+        return new ResponseEntity<>(responses, HttpStatus.OK);
     }
 
     // 5. INQUIRE ABOUT LAND
@@ -69,7 +78,7 @@ public class InvestorController {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         Investor currentInvestor = (Investor) authentication.getPrincipal();
 
-        investorService.inquireAboutLand(currentInvestor.getId(), listingId);
+//        investorService.inquireAboutLand(currentInvestor.getId(), listingId);
         return new ResponseEntity<>("Inquiry sent to the owner", HttpStatus.OK);
     }
 
@@ -98,3 +107,4 @@ public class InvestorController {
 // Local records for incoming JSON payloads
 record QuestionRequest(String content) {}
 record ReviewRequest(int rating, String reviewText) {}
+record InquiryRequest(String message) {}
