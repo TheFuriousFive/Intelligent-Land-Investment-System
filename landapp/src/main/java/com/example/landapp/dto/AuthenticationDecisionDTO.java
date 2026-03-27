@@ -13,6 +13,8 @@ import lombok.NoArgsConstructor;
 public class AuthenticationDecisionDTO {
     private long ListingId;
     private long authenticatorId;
-    private long approved;
+    private boolean approved;
     private String comments;
+
+
 }

@@ -1,5 +1,6 @@
 package com.example.landapp.service;
 
+import com.example.landapp.dto.AuthenticationDecisionDTO;
 import com.example.landapp.dto.AuthenticatorUpdateDTO;
 import com.example.landapp.entity.LandAuthenticator;
 import com.example.landapp.entity.LandListing;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
+import java.util.List;
 
 @Service
 public class LandAuthenticatorService {
@@ -55,19 +57,19 @@ public class LandAuthenticatorService {
 
     // 2. The Core Method: Authenticate Land!
     @Transactional
-    public void authenticateLand(Long listingId, Long authenticatorId, boolean isApproved, String comments) {
+    public void authenticateLand(AuthenticationDecisionDTO decision) {
 
         // Find the authenticator
-        LandAuthenticator authenticator = authenticatorRepository.findById(authenticatorId)
+        LandAuthenticator authenticator = authenticatorRepository.findById(decision.getAuthenticatorId())
                 .orElseThrow(() -> new RuntimeException("Authenticator not found"));
 
         // Find the land listing
-        LandListing listing = landRepository.findById(listingId)
+        LandListing listing = landRepository.findById(decision.getListingId())
                 .orElseThrow(() -> new RuntimeException("Land Listing not found"));
 
         // Update the listing's verification status
         // (You'll need to add a 'verificationStatus' and 'verifiedBy' field to your LandListing entity)
-        if (isApproved) {
+        if (decision.isApproved()) {
             // listing.setVerificationStatus("APPROVED");
             // listing.setVerifiedBy(authenticator);
             listing.setVerificationStatus(VerificationStatus.APPROVED);
