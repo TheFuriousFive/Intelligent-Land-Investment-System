@@ -29,6 +29,8 @@ import com.example.landapp.mapper.LandListingMapper;
 import com.example.landapp.repository.*;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -128,7 +130,7 @@ public class InvestorService {
                 .collect(Collectors.toList());
     }
 
-
+    @Cacheable(value = "allListings")
     public void askQuestion(Long investorId, Long listingId, String content) {
 
         //Find the investor from DB by their ID
@@ -150,6 +152,7 @@ public class InvestorService {
         questionRepository.save(question);
     }
 
+    @CacheEvict(value = "listingReviews", key = "#listingId") // Wipes the old reviews cache!
     public void submitReview(Long investorId,Long ownerId, int rating, String comment) {
 
         //Validate the rating range
