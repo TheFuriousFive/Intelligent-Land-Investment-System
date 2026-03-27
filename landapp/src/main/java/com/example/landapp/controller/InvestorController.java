@@ -61,7 +61,7 @@ public class InvestorController {
         investorService.submitReview(currentInvestor.getId(), listingId, request.rating(), request.reviewText());
         return new ResponseEntity<>("Review submitted successfully", HttpStatus.CREATED);
     }
-    
+
     @PostMapping("/listings/{listingId}/inquiry")
     public ResponseEntity<String> inquire(
             @PathVariable Long listingId,
