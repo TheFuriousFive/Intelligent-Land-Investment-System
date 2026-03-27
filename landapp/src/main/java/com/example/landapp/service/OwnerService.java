@@ -8,6 +8,7 @@ import com.example.landapp.repository.*;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -51,6 +52,7 @@ public class OwnerService {
     private InquiryRepository inquiryRepository;
 
     @Transactional
+    @CacheEvict(value = "ownerProfile", key = "#ownerId") // <-- Wipes the old profile cache!
     public void updateOwnerProfile(Long ownerId, OwnerUpdateDTO updateDto) {
         Owner owner = ownerRepository.findById(ownerId)
                 .orElseThrow(() -> new RuntimeException("Owner not found with ID: " + ownerId));
@@ -185,6 +187,7 @@ public class OwnerService {
 
     // 2. Owner replies to the inquiry
     @Transactional
+    @CacheEvict(value = "ownerProfile", key = "#ownerId") // <-- Forces the Trust Score to recalculate next time!
     public void replyToInquiry(Long inquiryId, Long ownerId, ContactMethod method) {
         Inquiry inquiry = inquiryRepository.findById(inquiryId)
                 .orElseThrow(() -> new RuntimeException("Inquiry not found"));
@@ -213,6 +216,7 @@ public class OwnerService {
 
     }
 
+    @Cacheable(value = "ownerProfile", key = "#ownerId")
     public OwnerResponseDTO getOwnerById(Long ownerId) {
 
         trustScoreService.calculateTrustScore(ownerId);
