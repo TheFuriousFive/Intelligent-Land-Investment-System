@@ -1,16 +1,10 @@
 package com.example.landapp.service;
 
 import com.example.landapp.dto.*;
-import com.example.landapp.entity.Answer;
-import com.example.landapp.entity.LandListing;
-import com.example.landapp.entity.Owner;
-import com.example.landapp.entity.Question;
+import com.example.landapp.entity.*;
 import com.example.landapp.mapper.LandListingMapper;
 import com.example.landapp.mapper.OwnerMapper;
-import com.example.landapp.repository.AnswerRepository;
-import com.example.landapp.repository.LandListingRepository;
-import com.example.landapp.repository.OwnerRepository;
-import com.example.landapp.repository.QuestionRepository;
+import com.example.landapp.repository.*;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -51,6 +45,9 @@ public class OwnerService {
     // Add this injection at the top of OwnerService
     @Autowired
     private SupabaseStorageService supabaseStorageService;
+
+    @Autowired
+    private InquiryRepository inquiryRepository;
 
     @Transactional
     public void updateOwnerProfile(Long ownerId, OwnerUpdateDTO updateDto) {
@@ -159,6 +156,43 @@ public class OwnerService {
 
         //Save to database
         answerRepository.save(answer);
+    }
+
+    public List<OwnerInboxResponseDTO> getOwnerInquiries(Long ownerId) {
+        List<Inquiry> inquiries = inquiryRepository.findByOwnerIdOrderByCreatedAtDesc(ownerId);
+
+        return inquiries.stream().map(inquiry -> {
+            OwnerInboxResponseDTO dto = new OwnerInboxResponseDTO();
+            dto.setInquiryId(inquiry.getId());
+            dto.setLandListingId(inquiry.getLandListing().getId());
+            dto.setLandTitle(inquiry.getLandListing().getTitle());
+            dto.setCustomMessage(inquiry.getMessage());
+
+            // FULL NAME Implementation
+            dto.setInvestorFullName(inquiry.getInvestor().getFirstName() + " " + inquiry.getInvestor().getLastName());
+            dto.setInvestorContactNumber(inquiry.getInvestor().getContactNumber());
+            dto.setInvestorEmail(inquiry.getInvestor().getEmail());
+
+            dto.setStatus(inquiry.getStatus());
+            dto.setCreatedAt(inquiry.getCreatedAt());
+            return dto;
+        }).toList();
+    }
+
+    // 2. Owner replies to the inquiry
+    @Transactional
+    public void replyToInquiry(Long inquiryId, Long ownerId, ContactMethod method) {
+        Inquiry inquiry = inquiryRepository.findById(inquiryId)
+                .orElseThrow(() -> new RuntimeException("Inquiry not found"));
+
+        if (!inquiry.getOwner().getId().equals(ownerId)) {
+            throw new RuntimeException("Unauthorized: This inquiry does not belong to you.");
+        }
+
+        // Update the status and save the chosen contact method
+        inquiry.setStatus(InquiryStatus.CONTACTED);
+        inquiry.setChosenContactMethod(method);
+        inquiryRepository.save(inquiry);
     }
 
     public List<LandListingResponseDTO> getOwnerListings(Long ownerId) {
