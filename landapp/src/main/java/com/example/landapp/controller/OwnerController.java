@@ -1,9 +1,6 @@
 package com.example.landapp.controller;
-
-import com.example.landapp.dto.LandListingCreateDTO;
-import com.example.landapp.dto.LandListingResponseDTO;
-import com.example.landapp.dto.OwnerResponseDTO;
-import com.example.landapp.dto.OwnerUpdateDTO;
+import com.example.landapp.dto.*;
+import com.example.landapp.entity.ContactMethod;
 import com.example.landapp.entity.Owner;
 import com.example.landapp.service.OwnerService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -107,6 +104,28 @@ public class OwnerController {
         return new ResponseEntity<>(listings, HttpStatus.OK);
     }
 
+    @GetMapping("/inquiries")
+    public ResponseEntity<List<OwnerInboxResponseDTO>> getMyInquiries() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        Owner currentOwner = (Owner) authentication.getPrincipal();
+
+        List<OwnerInboxResponseDTO> inquiries = ownerService.getOwnerInquiries(currentOwner.getId());
+        return new ResponseEntity<>(inquiries, HttpStatus.OK);
+    }
+
+    // Owner clicks "Reply via Email" or "Reply via Phone"
+    @PostMapping("/inquiries/{inquiryId}/reply")
+    public ResponseEntity<String> replyToInquiry(
+            @PathVariable Long inquiryId,
+            @RequestBody ReplyRequest request) {
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        Owner currentOwner = (Owner) authentication.getPrincipal();
+
+        ownerService.replyToInquiry(inquiryId, currentOwner.getId(), request.method());
+        return new ResponseEntity<>("Inquiry updated successfully", HttpStatus.OK);
+    }
+
     /*
       This endpoint fetches the logged-in owner's profile.
       Changed path from /{ownerId} to /me for better REST practice!
@@ -132,3 +151,4 @@ public class OwnerController {
 
 // A quick local record just to catch the incoming JSON answer text!
 record AnswerRequest(String content) {}
+record ReplyRequest(ContactMethod method) {}
