@@ -10,5 +10,6 @@ public class OwnerResponseDTO {
     private String email;
     private String contactNumber;
     private Double trustScore;
+    private String ricCode;
     // Note: We excluded passwordHash for security!
 }

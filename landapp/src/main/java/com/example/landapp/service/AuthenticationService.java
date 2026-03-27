@@ -20,15 +20,19 @@ public class AuthenticationService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
+    private final RicGenerator ricGenerator;
+
 
     public AuthenticationService(
             UserRepository userRepository,
             AuthenticationManager authenticationManager,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder, RicGenerator ricGenerator
     ) {
         this.userRepository = userRepository;
         this.authenticationManager = authenticationManager;
         this.passwordEncoder = passwordEncoder;
+        this.ricGenerator = ricGenerator;
+
     }
 
     // --- REGISTRATION METHODS ---
@@ -39,6 +43,7 @@ public class AuthenticationService {
         owner.setLastName(input.getLastName());
         owner.setEmail(input.getEmail());
         owner.setContactNumber(input.getContactNumber());
+        owner.setRicCode(generateUniqueRic());
 
         // Hash the password before saving!
         owner.setPasswordHash(passwordEncoder.encode(input.getPasswordHash()));
@@ -52,6 +57,7 @@ public class AuthenticationService {
         investor.setLastName(input.getLastName());
         investor.setEmail(input.getEmail());
         investor.setContactNumber(input.getContactNumber());
+        investor.setRicCode(generateUniqueRic());
 
         // Hash the password before saving!
         investor.setPasswordHash(passwordEncoder.encode(input.getPasswordHash()));
@@ -65,6 +71,7 @@ public class AuthenticationService {
         authenticator.setLastName(input.getLastName());
         authenticator.setEmail(input.getEmail());
         authenticator.setContactNumber(input.getContactNumber());
+        authenticator.setRicCode(generateUniqueRic());
 
         // This is unique to the authenticator
         authenticator.setProfessionalRegNumber(input.getProfessionalRegNumber());
@@ -89,5 +96,13 @@ public class AuthenticationService {
         // 2. If successful, fetch the user from the database and return them
         return userRepository.findByEmail(input.getEmail())
                 .orElseThrow(() -> new RuntimeException("User not found after authentication"));
+    }
+
+    private String generateUniqueRic() {
+        String ric;
+        do {
+            ric = ricGenerator.generate();
+        } while (userRepository.existsByRicCode(ric));
+        return ric;
     }
 }

@@ -21,4 +21,5 @@ public class LoginResponseDTO {
     private Long userId;
     private String firstName;
     private String userType; // e.g., "OWNER", "INVESTOR", or "AUTHENTICATOR"
+    private String ricCode;
 }
