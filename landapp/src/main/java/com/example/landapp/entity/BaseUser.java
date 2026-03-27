@@ -27,6 +27,9 @@ public abstract class BaseUser implements UserDetails {
     private String firstName;
     private String lastName;
 
+    @Column(name = "ric_code", unique = true)
+    private String ricCode;
+
     @Column(unique = true, nullable = false)
     private String email;
 
