@@ -11,4 +11,6 @@ public interface UserRepository extends JpaRepository<BaseUser, Long> {
     // This method will now search the 'users' table
     // and return the specific subclass (Owner/Investor/etc.)
     Optional<BaseUser> findByEmail(String email);
+    boolean existsByRicCode(String ricCode);
+
 }
