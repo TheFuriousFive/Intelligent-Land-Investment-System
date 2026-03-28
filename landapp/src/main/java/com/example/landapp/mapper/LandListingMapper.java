@@ -1,6 +1,7 @@
 package com.example.landapp.mapper;
 
 import com.example.landapp.dto.LandListingCreateDTO;
+import com.example.landapp.dto.LandListingDetailDTO;
 import com.example.landapp.dto.LandListingResponseDTO;
 import com.example.landapp.entity.LandListing;
 import com.example.landapp.service.MapDataGetting;
@@ -92,5 +93,29 @@ public class LandListingMapper {
         existing.setLandType(dto.getLandType());
 
         // Note: We intentionally do NOT update the ID, Owner, Status, or Date here.
+    }
+
+    public LandListingDetailDTO toDetailDTO(LandListing land) {
+        if (land == null) {
+            return null;
+        }
+        return LandListingDetailDTO.builder()
+                .id(land.getId())
+                .title(land.getTitle())
+                .description(land.getDescription())
+                .price(land.getPrice())
+                .area(land.getArea())
+                .location(land.getLocation())
+                .landType(land.getLandType())
+                .verificationStatus(land.getVerificationStatus())
+                .imageUrls(land.getImageUrls())
+                .deedDocumentUrls(land.getDeedDocumentUrls())
+                // Safe null check for owner
+                .ownerName(land.getOwner() != null ?
+                        land.getOwner().getFirstName() + " " + land.getOwner().getLastName() :
+                        "N/A")
+                .latitude(land.getLatitude())
+                .longitude(land.getLongitude())
+                .build();
     }
 }

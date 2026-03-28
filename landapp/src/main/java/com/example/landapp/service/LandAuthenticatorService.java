@@ -2,9 +2,11 @@ package com.example.landapp.service;
 
 import com.example.landapp.dto.AuthenticationDecisionDTO;
 import com.example.landapp.dto.AuthenticatorUpdateDTO;
+import com.example.landapp.dto.LandListingDetailDTO;
 import com.example.landapp.entity.LandAuthenticator;
 import com.example.landapp.entity.LandListing;
 import com.example.landapp.entity.VerificationStatus;
+import com.example.landapp.mapper.LandListingMapper;
 import com.example.landapp.repository.LandAuthenticatorRepository;
 import com.example.landapp.repository.LandListingRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +24,9 @@ public class LandAuthenticatorService {
 
     @Autowired
     private LandListingRepository landRepository;
+
+    @Autowired
+    private LandListingMapper landMapper;
 
     // 1. Register a new Authenticator
     @Transactional
@@ -84,4 +89,21 @@ public class LandAuthenticatorService {
         // Save the updated listing
         landRepository.save(listing);
     }
+
+    // 1. Get all listings waiting for verification
+    public List<LandListingDetailDTO> getPendingListings() {
+        return landRepository.findByVerificationStatus(VerificationStatus.PENDING_VERIFICATION)
+                .stream()
+                .map(landMapper::toDetailDTO)
+                .toList();
+    }
+
+    // 2. Get specific details when an authenticator clicks a listing
+    public LandListingDetailDTO getListingById(Long id) {
+        LandListing land = landRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Land not found with ID: "+ id));
+        return landMapper.toDetailDTO(land);
+    }
+
+
 }
