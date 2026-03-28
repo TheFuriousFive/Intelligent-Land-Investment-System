@@ -7,6 +7,8 @@ import com.example.landapp.mapper.OwnerMapper;
 import com.example.landapp.repository.*;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -50,6 +52,7 @@ public class OwnerService {
     private InquiryRepository inquiryRepository;
 
     @Transactional
+    @CacheEvict(value = "ownerProfile", key = "#ownerId") // <-- Wipes the old profile cache!
     public void updateOwnerProfile(Long ownerId, OwnerUpdateDTO updateDto) {
         Owner owner = ownerRepository.findById(ownerId)
                 .orElseThrow(() -> new RuntimeException("Owner not found with ID: " + ownerId));
@@ -63,6 +66,7 @@ public class OwnerService {
 
     // 1. CREATE Listing (Updated Signature)
     @Transactional
+    @CacheEvict(value = "allListings", allEntries = true) // Wipes the entire homepage catalog cache!
     public LandListingResponseDTO createListing(LandListingCreateDTO dto, List<MultipartFile> images, MultipartFile deedDocument) throws Exception {
         Owner owner = ownerRepository.findById(dto.getOwnerId())
                 .orElseThrow(() -> new RuntimeException("Owner not found"));
@@ -117,6 +121,7 @@ public class OwnerService {
 
     // 3. UPDATE Listing
     @Transactional
+    @CacheEvict(value = "singleLandListing", key = "#listingId") // <-- Deletes old cache!
     public void updateListing(Long listingId, LandListingCreateDTO updateDto) {
         LandListing existingListing = landRepository.findById(listingId)
                 .orElseThrow(() -> new RuntimeException("Listing not found"));
@@ -132,6 +137,7 @@ public class OwnerService {
 
     }
 
+    @CacheEvict(value = "listingQuestions", key = "#question.landListing.id") // Wipes the questions cache so the answer shows up
     public void answerQuestion(Long questionId, Long ownerId, String answerContent) {
 
         //Find the question — throw 404 if not found
@@ -181,6 +187,7 @@ public class OwnerService {
 
     // 2. Owner replies to the inquiry
     @Transactional
+    @CacheEvict(value = "ownerProfile", key = "#ownerId") // <-- Forces the Trust Score to recalculate next time!
     public void replyToInquiry(Long inquiryId, Long ownerId, ContactMethod method) {
         Inquiry inquiry = inquiryRepository.findById(inquiryId)
                 .orElseThrow(() -> new RuntimeException("Inquiry not found"));
@@ -209,6 +216,7 @@ public class OwnerService {
 
     }
 
+    @Cacheable(value = "ownerProfile", key = "#ownerId")
     public OwnerResponseDTO getOwnerById(Long ownerId) {
 
         trustScoreService.calculateTrustScore(ownerId);
