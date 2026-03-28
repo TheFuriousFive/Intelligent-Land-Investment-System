@@ -1,8 +1,7 @@
 package com.example.landapp.controller;
 
-import com.example.landapp.dto.LandListingResponseDTO;
-import com.example.landapp.dto.QuestionResponseDTO;
-import com.example.landapp.dto.ReviewResponseDTO;
+import com.example.landapp.dto.*;
+import com.example.landapp.service.LandAuthenticatorService;
 import com.example.landapp.service.LandListingService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -17,6 +16,9 @@ public class LandListingController {
 
     @Autowired
     private LandListingService landListingService;
+
+    @Autowired
+    private LandAuthenticatorService authenticatorService;
 
     // 1. Fetch the main property details
     @GetMapping("/{listingId}")
@@ -45,4 +47,24 @@ public class LandListingController {
         List<LandListingResponseDTO> responses = landListingService.getAllListings();
         return new ResponseEntity<>(responses, HttpStatus.OK);
     }
+
+    // Submit approval or rejection
+    @PostMapping("/verify-land")
+    public ResponseEntity<String> verifyLand(@RequestBody AuthenticationDecisionDTO decision) {
+        authenticatorService.authenticateLand(decision);
+        return ResponseEntity.ok("Verification status updated to: " + (decision.isApproved() ? "APPROVED" : "REJECTED"));
+    }
+
+    // GET: Display the "Inbox" of pending lands
+    @GetMapping("/pending")
+    public ResponseEntity<List<LandListingDetailDTO>> getPendingListings() {
+        return ResponseEntity.ok(authenticatorService.getPendingListings());
+    }
+
+    // GET: Display full details when a specific land is clicked
+    @GetMapping("/details/{id}")
+    public ResponseEntity<LandListingDetailDTO> getListingDetails(@PathVariable Long id) {
+        return ResponseEntity.ok(authenticatorService.getListingById(id));
+    }
+
 }
