@@ -61,6 +61,12 @@ public class LandListingController {
         return ResponseEntity.ok(authenticatorService.getPendingListings());
     }
 
+    // GET: Display approved lands
+    @GetMapping("/approved")
+    public ResponseEntity<List<LandListingDetailDTO>> getApprovedListings() {
+        return ResponseEntity.ok(authenticatorService.getApprovedListings());
+    }
+
     // GET: Display full details when a specific land is clicked
     @GetMapping("/details/{id}")
     public ResponseEntity<LandListingDetailDTO> getListingDetails(@PathVariable Long id) {

@@ -2,6 +2,8 @@ package com.example.landapp.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
+import java.io.Serializable;
 import java.util.Date;
 import java.math.BigDecimal;
 import java.util.List;
@@ -12,7 +14,7 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 @Data
-public class LandListing {
+public class LandListing implements Serializable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -106,7 +108,7 @@ public class LandListing {
         // Every listing starts as PENDING_VERIFICATION when first created
         // Matches your State Machine: Owner Creates Listing → Draft → Upload Docs → Pending_Verification
         if (this.verificationStatus == null) {
-            this.verificationStatus = VerificationStatus.PENDING_PAYMENT;
+            this.verificationStatus = VerificationStatus.PENDING_VERIFICATION;
         }
     }
 }

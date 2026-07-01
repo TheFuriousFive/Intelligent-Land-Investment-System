@@ -46,7 +46,7 @@ public class OwnerController {
     }
 
     /*
-      This is for the Owner to update the land listing.
+       This is for the Owner to update the land listing.
     */
     @PutMapping("/listings/{listingId}")
     public ResponseEntity<String> updateListing(

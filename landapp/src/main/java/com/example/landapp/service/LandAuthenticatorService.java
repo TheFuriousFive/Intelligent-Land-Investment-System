@@ -98,6 +98,15 @@ public class LandAuthenticatorService {
                 .toList();
     }
 
+
+    // 1b. Get all listings that have been approved
+    public List<LandListingDetailDTO> getApprovedListings() {
+        return landRepository.findByVerificationStatus(VerificationStatus.APPROVED)
+                .stream()
+                .map(landMapper::toDetailDTO)
+                .toList();
+    }
+
     // 2. Get specific details when an authenticator clicks a listing
     public LandListingDetailDTO getListingById(Long id) {
         LandListing land = landRepository.findById(id)
