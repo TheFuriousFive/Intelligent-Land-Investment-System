@@ -86,16 +86,32 @@ public class InvestorController {
         return new ResponseEntity<>(responses, HttpStatus.OK);
     }
 
-
-
     @GetMapping("/me")
     public ResponseEntity<InvestorResponseDTO> getInvestor() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        Investor currentInvestor = (Investor) authentication.getPrincipal();
+        //Investor currentInvestor = (Investor) authentication.getPrincipal();
+
+        // DON'T DO THIS: Investor investor = (Investor) authentication.getPrincipal();
+
+// DO THIS:
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (!(principal instanceof Investor)) {
+            throw new RuntimeException("Access Denied: Only Investors can access this.");
+        }
+        Investor currentInvestor = (Investor) principal;
 
         InvestorResponseDTO response = investorService.getInvestorById(currentInvestor.getId());
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
+//
+//    @GetMapping("/me")
+//    public ResponseEntity<InvestorResponseDTO> getInvestor() {
+//        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+//        Investor currentInvestor = (Investor) authentication.getPrincipal();
+//
+//        InvestorResponseDTO response = investorService.getInvestorById(currentInvestor.getId());
+//        return new ResponseEntity<>(response, HttpStatus.OK);
+//    }
 
     /*
       This endpoint allows the Investor to update their profile details.
