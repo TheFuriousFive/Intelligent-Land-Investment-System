@@ -23,4 +23,5 @@ public class LandListingDetailDTO {
     private String ownerName;
     private Double latitude;
     private Double longitude;
+    private OwnerSummaryDTO owner;
 }
