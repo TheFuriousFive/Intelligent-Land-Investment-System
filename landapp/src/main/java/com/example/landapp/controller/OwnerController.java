@@ -25,7 +25,8 @@ public class OwnerController {
       This is for the Owner to create a new land listing WITH images and deeds.
      */
     @PostMapping(value = "/listings", consumes = { MediaType.MULTIPART_FORM_DATA_VALUE })
-    public ResponseEntity<String> createListing(
+    // FIXED: Changed signature to Map<String, Object>
+    public ResponseEntity<java.util.Map<String, Object>> createListing(
             @RequestPart("landData") LandListingCreateDTO dto,
             @RequestPart("images") List<MultipartFile> images,
             @RequestPart("deedDocument") MultipartFile deedDocument) {
@@ -36,12 +37,29 @@ public class OwnerController {
 
             dto.setOwnerId(currentOwner.getId());
 
-            // Pass the files to the service along with the DTO!
-            ownerService.createListing(dto, images, deedDocument);
+            // 1. Call the service ONCE and catch the full DTO it returns
+            LandListingResponseDTO savedListing = ownerService.createListing(dto, images, deedDocument);
 
-            return new ResponseEntity<>("Land listing created successfully", HttpStatus.CREATED);
+            // 2. Extract the ID from that saved DTO
+            Long newListingId = savedListing.getId();
+
+            // 3. Return the ID back to the Next.js frontend!
+            return new ResponseEntity<>(
+                    java.util.Map.of(
+                            "message", "Land listing created successfully",
+                            "listingId", newListingId
+                    ),
+                    HttpStatus.CREATED
+            );
+
+            // (Deleted the duplicate string return statement that was here)
+
         } catch (Exception e) {
-            return new ResponseEntity<>("Failed to create listing: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+            // FIXED: Make the error response a Map as well to match the signature
+            return new ResponseEntity<>(
+                    java.util.Map.of("error", "Failed to create listing: " + e.getMessage()),
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
         }
     }
 
