@@ -3,6 +3,7 @@ package com.example.landapp.mapper;
 import com.example.landapp.dto.LandListingCreateDTO;
 import com.example.landapp.dto.LandListingDetailDTO;
 import com.example.landapp.dto.LandListingResponseDTO;
+import com.example.landapp.dto.OwnerSummaryDTO;
 import com.example.landapp.entity.LandListing;
 import com.example.landapp.service.MapDataGetting;
 import org.springframework.stereotype.Component;
@@ -99,6 +100,21 @@ public class LandListingMapper {
         if (land == null) {
             return null;
         }
+
+        // 1. Safely extract and construct the OwnerSummaryDTO
+        OwnerSummaryDTO safeOwner = null;
+        if (land.getOwner() != null) {
+            // USING PSEUDONYMOUS IDENTITY:
+            // Generate a code, e.g., "User-" + land.getOwner().getId()
+            // Or use an actual pseudonym field if you added one to the Owner entity.
+            String pseudonymousName = "User-" + land.getOwner().getId();
+
+            safeOwner = OwnerSummaryDTO.builder()
+                    .id(land.getOwner().getId())
+                    .name(pseudonymousName)
+                    .build();
+        }
+
         return LandListingDetailDTO.builder()
                 .id(land.getId())
                 .title(land.getTitle())
@@ -110,12 +126,9 @@ public class LandListingMapper {
                 .verificationStatus(land.getVerificationStatus())
                 .imageUrls(land.getImageUrls())
                 .deedDocumentUrls(land.getDeedDocumentUrls())
-                // Safe null check for owner
-                .ownerName(land.getOwner() != null ?
-                        land.getOwner().getFirstName() + " " + land.getOwner().getLastName() :
-                        "N/A")
                 .latitude(land.getLatitude())
                 .longitude(land.getLongitude())
+                .owner(safeOwner) // Attach the nested DTO here!
                 .build();
     }
 }
