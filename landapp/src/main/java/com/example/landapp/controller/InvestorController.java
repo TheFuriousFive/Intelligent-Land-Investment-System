@@ -46,23 +46,7 @@ public class InvestorController {
         return new ResponseEntity<>("Question submitted successfully", HttpStatus.CREATED);
     }
 
-
-    // 4. SUBMIT A REVIEW
-    @PostMapping("/listings/{listingId}/reviews")
-    public ResponseEntity<String> submitReview(
-            @PathVariable Long listingId,
-            @RequestBody ReviewRequest request) {
-
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        Investor currentInvestor = (Investor) authentication.getPrincipal();
-
-        // FIXED: Using request.comment() and passing the listingId safely
-        investorService.submitReview(currentInvestor.getId(), listingId, request.rating(), request.comment());
-        return new ResponseEntity<>("Review submitted successfully", HttpStatus.CREATED);
-    }
-
-
-
+    // ✅ KEEP THIS METHOD
     @PostMapping("/listings/{listingId}/inquiry")
     public ResponseEntity<String> inquire(
             @PathVariable Long listingId,
@@ -72,10 +56,9 @@ public class InvestorController {
         Investor currentInvestor = (Investor) authentication.getPrincipal();
 
         investorService.inquireAboutLand(currentInvestor.getId(), listingId, request.message());
-
-        // Changed to just return a simple success string, since the detailed view is now in their dashboard
         return new ResponseEntity<>("Inquiry sent successfully to the owner.", HttpStatus.CREATED);
     }
+
 
     // 2. Investor checks their inquiries (Where they see the failsafe number!)
     @GetMapping("/inquiries")
