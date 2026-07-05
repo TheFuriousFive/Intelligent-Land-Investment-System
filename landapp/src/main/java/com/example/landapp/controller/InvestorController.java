@@ -47,9 +47,7 @@ public class InvestorController {
     }
 
 
-
     // 4. SUBMIT A REVIEW
-
     @PostMapping("/listings/{listingId}/reviews")
     public ResponseEntity<String> submitReview(
             @PathVariable Long listingId,
@@ -58,9 +56,12 @@ public class InvestorController {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         Investor currentInvestor = (Investor) authentication.getPrincipal();
 
-        investorService.submitReview(currentInvestor.getId(), listingId, request.rating(), request.reviewText());
+        // FIXED: Using request.comment() and passing the listingId safely
+        investorService.submitReview(currentInvestor.getId(), listingId, request.rating(), request.comment());
         return new ResponseEntity<>("Review submitted successfully", HttpStatus.CREATED);
     }
+
+
 
     @PostMapping("/listings/{listingId}/inquiry")
     public ResponseEntity<String> inquire(
@@ -128,5 +129,6 @@ public class InvestorController {
 
 // Local records for incoming JSON payloads
 record QuestionRequest(String content) {}
-record ReviewRequest(int rating, String reviewText) {}
+record ReviewRequest(int rating, String comment) {}
+
 record InquiryRequest(String message) {}

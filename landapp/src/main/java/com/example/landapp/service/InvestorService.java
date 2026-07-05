@@ -152,10 +152,10 @@ public class InvestorService {
         questionRepository.save(question);
     }
 
-    @CacheEvict(value = "listingReviews", key = "#listingId") // Wipes the old reviews cache!
-    public void submitReview(Long investorId,Long ownerId, int rating, String comment) {
+    @CacheEvict(value = "listingReviews", key = "#listingId")
+    public void submitReview(Long investorId, Long listingId, int rating, String comment) {
 
-        //Validate the rating range
+        // Validate the rating range
         if (rating < 1 || rating > 5) {
             throw new RuntimeException("Rating must be between 1 and 5");
         }
@@ -163,10 +163,13 @@ public class InvestorService {
         Investor investor = investorRepository.findById(investorId)
                 .orElseThrow(() -> new RuntimeException("Investor not found: " + investorId));
 
-        Owner owner = ownerRepository.findById(ownerId)
-                .orElseThrow(() -> new RuntimeException("Owner not found: "+ ownerId));
+        // FIXED: Find the listing first, then get the owner from it!
+        LandListing listing = landListingRepository.findById(listingId)
+                .orElseThrow(() -> new RuntimeException("Listing not found: " + listingId));
 
-        //Build the Review entity
+        Owner owner = listing.getOwner();
+
+        // Build the Review entity
         Review review = new Review();
         review.setRating(rating);
         review.setComment(comment);
@@ -174,10 +177,8 @@ public class InvestorService {
         review.setOwner(owner);
         review.setCreatedAt(LocalDateTime.now());
 
-        //Save the review
+        // Save the review
         reviewRepository.save(review);
-
-
     }
 
     // 1. Create the Inquiry (Simplified, no longer returns instant owner details)
