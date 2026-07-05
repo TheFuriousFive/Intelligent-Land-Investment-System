@@ -46,25 +46,43 @@ public class InvestorController {
         return new ResponseEntity<>("Question submitted successfully", HttpStatus.CREATED);
     }
 
-    // ✅ KEEP THIS METHOD
+    // ✅ KEEP THIS METHOD (But safely cast it!)
     @PostMapping("/listings/{listingId}/inquiry")
     public ResponseEntity<String> inquire(
             @PathVariable Long listingId,
             @RequestBody InquiryRequest request) {
 
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        Investor currentInvestor = (Investor) authentication.getPrincipal();
+        // 1. Safely grab the logged-in user
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+
+        // 2. Check if they are actually an Investor before casting!
+        if (!(principal instanceof Investor)) {
+            // Throwing a 403 Forbidden is much cleaner than a 500 server crash!
+            return new ResponseEntity<>("Access Denied: Only Investors can send inquiries.", HttpStatus.FORBIDDEN);
+        }
+
+        // 3. Safe to cast
+        Investor currentInvestor = (Investor) principal;
 
         investorService.inquireAboutLand(currentInvestor.getId(), listingId, request.message());
         return new ResponseEntity<>("Inquiry sent successfully to the owner.", HttpStatus.CREATED);
     }
 
-
     // 2. Investor checks their inquiries (Where they see the failsafe number!)
     @GetMapping("/inquiries")
-    public ResponseEntity<List<InvestorInquiryResponseDTO>> getMyInquiries() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        Investor currentInvestor = (Investor) authentication.getPrincipal();
+    public ResponseEntity<?> getMyInquiries() {
+
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+
+        // ✅ SAFE CASTING ADDED HERE
+        if (!(principal instanceof Investor)) {
+            return new ResponseEntity<>(
+                    java.util.Map.of("error", "Access Denied: Only Investors can view this dashboard."),
+                    HttpStatus.FORBIDDEN
+            );
+        }
+
+        Investor currentInvestor = (Investor) principal;
 
         List<InvestorInquiryResponseDTO> responses = investorService.getInvestorInquiries(currentInvestor.getId());
         return new ResponseEntity<>(responses, HttpStatus.OK);
