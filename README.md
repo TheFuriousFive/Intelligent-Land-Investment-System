@@ -145,11 +145,11 @@ The API will be available at `http://localhost:8080`.
 
 | Index | Name | Role |
 | --- | --- | --- |
-| 240575F | Rubasingha S.T. (Selith) | Lead Developer / Full-Stack |
-| 240370X | Kumarasiri I.D.N. (Nethmika) | Software Engineer |
-| 240271U | Jayasekara J.P.D.N.R. (Nadun) | Software Engineer |
-| 240297E | Jayawardhana J.A.R.P. (Rashmi) | Software Engineer |
-| 240567H | Rathnayake S.U. (Shanuka) | Software Engineer |
+| 240575F | Rubasingha S.T. (Selith) | 
+| 240370X | Kumarasiri I.D.N. (Nethmika) | 
+| 240271U | Jayasekara J.P.D.N.R. (Nadun) | 
+| 240297E | Jayawardhana J.A.R.P. (Rashmi) | 
+| 240567H | Rathnayake S.U. (Shanuka) | 
 
 ---
 
