@@ -1,0 +1,3831 @@
+
+--- FILE: src/main/java/com/example/landapp/LandappApplication.java ---
+
+package com.example.landapp;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cache.annotation.EnableCaching;
+
+@SpringBootApplication
+@EnableCaching
+public class LandappApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(LandappApplication.class, args);
+	}
+
+}
+
+--- FILE: src/main/java/com/example/landapp/configs/ApplicationConfiguration.java ---
+
+package com.example.landapp.configs;
+
+
+import com.example.landapp.repository.UserRepository;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+
+@Configuration
+public class ApplicationConfiguration {
+    private final UserRepository userRepository;
+
+    public ApplicationConfiguration(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
+
+    @Bean
+    UserDetailsService userDetailsService() {
+        return username -> userRepository.findByEmail(username)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+    }
+
+    @Bean
+    BCryptPasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+        return config.getAuthenticationManager();
+    }
+
+    @Bean
+    AuthenticationProvider authenticationProvider() {
+        // 1. Pass the userDetailsService directly into the constructor here:
+        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider(userDetailsService());
+
+        // 2. The setUserDetailsService line is deleted because it's handled above!
+
+        // 3. Keep the password encoder
+        authProvider.setPasswordEncoder(passwordEncoder());
+
+        return authProvider;
+    }
+}
+--- FILE: src/main/java/com/example/landapp/configs/JwtAuthenticationFilter.java ---
+
+package com.example.landapp.configs;
+
+
+import com.example.landapp.service.JwtService;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.lang.NonNull;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.servlet.HandlerExceptionResolver;
+
+import java.io.IOException;
+
+@Component
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+    private final HandlerExceptionResolver handlerExceptionResolver;
+
+    private final JwtService jwtService;
+    private final UserDetailsService userDetailsService;
+
+    public JwtAuthenticationFilter(
+            JwtService jwtService,
+            UserDetailsService userDetailsService,
+            HandlerExceptionResolver handlerExceptionResolver
+    ) {
+        this.jwtService = jwtService;
+        this.userDetailsService = userDetailsService;
+        this.handlerExceptionResolver = handlerExceptionResolver;
+    }
+
+    @Override
+    protected void doFilterInternal(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain filterChain
+    ) throws ServletException, IOException {
+        final String authHeader = request.getHeader("Authorization");
+
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        try {
+            final String jwt = authHeader.substring(7);
+            final String userEmail = jwtService.extractUsername(jwt);
+
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+            if (userEmail != null && authentication == null) {
+                UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
+
+                if (jwtService.isTokenValid(jwt, userDetails)) {
+                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                            userDetails,
+                            null,
+                            userDetails.getAuthorities()
+                    );
+
+                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                }
+            }
+
+            filterChain.doFilter(request, response);
+        } catch (Exception exception) {
+            handlerExceptionResolver.resolveException(request, response, null, exception);
+        }
+    }
+}
+--- FILE: src/main/java/com/example/landapp/configs/RestConfig.java ---
+
+package com.example.landapp.configs;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.client.RestClient;
+
+
+
+import java.time.Duration;
+
+@Configuration
+public class RestConfig {
+
+    @Bean
+    public RestClient restClient() {
+        return RestClient.builder()
+                .baseUrl("https://overpass-api.de/api/interpreter")
+                .build();
+    }
+}
+
+--- FILE: src/main/java/com/example/landapp/configs/StripeConfig.java ---
+
+package com.example.landapp.configs;
+
+import com.stripe.Stripe;
+import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Configuration;
+@Configuration
+public class StripeConfig {
+    @Value("${stripe.secret.key}")
+    private String stripeSecretKey;
+    @PostConstruct
+    public void init() {
+        Stripe.apiKey = stripeSecretKey; // Set up Stripe API key
+    }
+}
+
+--- FILE: src/main/java/com/example/landapp/configs/SecurityConfiguration.java ---
+
+package com.example.landapp.configs;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.List;
+
+@Configuration
+@EnableWebSecurity
+public class SecurityConfiguration {
+    private final AuthenticationProvider authenticationProvider;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    public SecurityConfiguration(
+            JwtAuthenticationFilter jwtAuthenticationFilter,
+            AuthenticationProvider authenticationProvider
+    ) {
+        this.authenticationProvider = authenticationProvider;
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+    }
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http
+                // 1. Disable CSRF using the new Lambda syntax
+                .csrf(AbstractHttpConfigurer::disable)
+
+                // 2. Set up CORS handling
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+
+                // 3. Configure route rules
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/auth/**").permitAll() // Public routes
+                        .requestMatchers(HttpMethod.POST, "/api/payments/webhook").permitAll()
+                        .anyRequest().authenticated()            // Protected routes
+                )
+
+                // 4. Make it stateless
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+
+                // 5. Add your custom Auth Provider and JWT Filter
+                .authenticationProvider(authenticationProvider)
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+
+    @Bean
+    CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+
+        // Update this to your Next.js frontend URL!
+        configuration.setAllowedOrigins(List.of("http://localhost:3000"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+
+        return source;
+    }
+}
+--- FILE: src/main/java/com/example/landapp/controller/PaymentController.java ---
+
+package com.example.landapp.controller;
+
+import com.example.landapp.entity.Owner;
+import com.example.landapp.service.StripePaymentService;
+import com.stripe.exception.SignatureVerificationException;
+import com.stripe.net.Webhook;
+import com.stripe.model.Event;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/payments")
+public class PaymentController {
+
+    private final StripePaymentService stripePaymentService;
+    private final String webhookSecret;
+
+    public PaymentController(
+            StripePaymentService stripePaymentService,
+            @Value("${stripe.webhook.secret}") String webhookSecret) {
+        this.stripePaymentService = stripePaymentService;
+        this.webhookSecret = webhookSecret;
+    }
+
+    // 1. Called by your Next.js frontend when the user clicks "Pay"
+    @PostMapping("/{listingId}/checkout")
+    public ResponseEntity<Map<String, String>> initiateCheckout(@PathVariable Long listingId) {
+        try {
+            // Grab the currently logged-in Owner from Spring Security
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            Owner currentOwner = (Owner) authentication.getPrincipal();
+
+            // Pass BOTH the listingId and the currentOwner to the service
+            String sessionUrl = stripePaymentService.initiateListingPayment(listingId, currentOwner);
+
+            // Return as a JSON object so Next.js can parse it easily
+            return new ResponseEntity<>(Map.of("sessionUrl", sessionUrl), HttpStatus.OK);
+        } catch (Exception e) {
+            return new ResponseEntity<>(Map.of("error", e.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    // 2. Called by Stripe's servers behind the scenes
+    @PostMapping("/webhook")
+    public ResponseEntity<Void> handleStripeWebhook(
+            @RequestBody String payload,
+            @RequestHeader("Stripe-Signature") String sigHeader) {
+
+        try {
+            // This verifies that the request ACTUALLY came from Stripe and not a hacker
+            Event event = Webhook.constructEvent(payload, sigHeader, webhookSecret);
+
+            // Make sure you still have the capturePayment method in your StripePaymentService!
+            stripePaymentService.capturePayment(event);
+
+            return ResponseEntity.ok().build(); // Tell Stripe we got it!
+        } catch (SignatureVerificationException e) {
+            System.out.println("⚠️ Invalid Stripe webhook signature!");
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+}
+--- FILE: src/main/java/com/example/landapp/controller/LandVerifierController.java ---
+
+package com.example.landapp.controller;
+
+import com.example.landapp.dto.AuthenticatorUpdateDTO;
+import com.example.landapp.entity.LandAuthenticator;
+import com.example.landapp.service.LandAuthenticatorService;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/landapp/verifiers")
+public class LandVerifierController {
+
+    private final LandAuthenticatorService authenticatorService;
+
+    public LandVerifierController(LandAuthenticatorService authenticatorService) {
+        this.authenticatorService = authenticatorService;
+    }
+
+    /*
+      This endpoint allows the Authenticator to update their profile details.
+    */
+    @PutMapping("/me")
+    public ResponseEntity<String> updateProfile(@RequestBody AuthenticatorUpdateDTO updateDto) {
+        // Grab the logged-in Authenticator from Spring Security
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        LandAuthenticator currentAuthenticator = (LandAuthenticator) authentication.getPrincipal();
+
+        // Pass the secure ID and the DTO to the service
+        authenticatorService.updateAuthenticatorProfile(currentAuthenticator.getId(), updateDto);
+
+        return new ResponseEntity<>("Verifier profile updated successfully", HttpStatus.OK);
+    }
+
+    // (Your teammate will eventually add the @PostMapping("/{listingId}/verify") here!)
+}
+--- FILE: src/main/java/com/example/landapp/controller/AuthenticationController.java ---
+
+package com.example.landapp.controller;
+
+import com.example.landapp.dto.*;
+import com.example.landapp.entity.BaseUser;
+import com.example.landapp.entity.Investor;
+import com.example.landapp.entity.LandAuthenticator;
+import com.example.landapp.entity.Owner;
+import com.example.landapp.service.AuthenticationService;
+import com.example.landapp.service.JwtService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.HashMap;
+import java.util.Map;
+
+@RequestMapping("/auth")
+@RestController
+public class AuthenticationController {
+
+    private final JwtService jwtService;
+    private final AuthenticationService authenticationService;
+
+    public AuthenticationController(JwtService jwtService, AuthenticationService authenticationService) {
+        this.jwtService = jwtService;
+        this.authenticationService = authenticationService;
+    }
+
+    // 1. REGISTER OWNER
+    @PostMapping("/signup/owner")
+    public ResponseEntity<Owner> registerOwner(@RequestBody OwnerRegistrationDTO registerDto) {
+        Owner registeredOwner = authenticationService.registerOwner(registerDto);
+        return ResponseEntity.ok(registeredOwner);
+    }
+
+    // 2. REGISTER INVESTOR
+    @PostMapping("/signup/investor")
+    public ResponseEntity<Investor> registerInvestor(@RequestBody InvestorRegistrationDTO registerDto) {
+        Investor registeredInvestor = authenticationService.registerInvestor(registerDto);
+        return ResponseEntity.ok(registeredInvestor);
+    }
+
+    @PostMapping("/signup/authenticator")
+    public ResponseEntity<LandAuthenticator> registerAuthenticator(@RequestBody LandAuthenticatorRegistrationDTO registerDto) {
+        LandAuthenticator registeredAuthenticator = authenticationService.registerAuthenticator(registerDto);
+        return ResponseEntity.ok(registeredAuthenticator);
+    }
+
+    // 3. LOGIN (Handles all user types!)
+    @PostMapping("/login")
+    public ResponseEntity<LoginResponseDTO> authenticate(@RequestBody LoginDTO loginDto) {
+        // Authenticate the user (throws error if bad password)
+        BaseUser authenticatedUser = authenticationService.authenticate(loginDto);
+
+        // Generate the JWT token
+        String jwtToken = jwtService.generateToken(authenticatedUser);
+
+        // Figure out what type of user just logged in so Next.js knows which dashboard to show
+        String userType = "UNKNOWN";
+        if (authenticatedUser instanceof Owner) {
+            userType = "OWNER";
+        } else if (authenticatedUser instanceof LandAuthenticator) {
+            userType = "AUTHENTICATOR";
+        } else if (authenticatedUser instanceof Investor) {
+            userType = "INVESTOR";
+        }
+
+        // Build the custom LoginResponseDTO we created earlier
+        LoginResponseDTO loginResponse = LoginResponseDTO.builder()
+                .token(jwtToken)
+                .expiresIn(jwtService.getExpirationTime())
+                .userId(authenticatedUser.getId())
+                .firstName(authenticatedUser.getFirstName())
+                .userType(userType)
+                .ricCode(authenticatedUser.getRicCode())
+                .build();
+
+        return ResponseEntity.ok(loginResponse);
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<Map<String, Object>> getCurrentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        // Grab the base user (could be Owner OR Investor)
+        BaseUser currentUser = (BaseUser) authentication.getPrincipal();
+
+        // Build a response that tells the frontend exactly what type of user this is
+        Map<String, Object> response = new HashMap<>();
+        response.put("id", currentUser.getId());
+        response.put("firstName", currentUser.getFirstName());
+        response.put("email", currentUser.getEmail());
+
+        if (currentUser instanceof Owner) {
+            response.put("userType", "OWNER");
+        } else if (currentUser instanceof Investor) {
+            response.put("userType", "INVESTOR");
+        } else if (currentUser instanceof LandAuthenticator) {
+            response.put("userType", "AUTHENTICATOR");
+        } else {
+            response.put("userType", "UNKNOWN");
+        }
+
+        return ResponseEntity.ok(response);
+    }
+}
+
+--- FILE: src/main/java/com/example/landapp/controller/InvestorController.java ---
+
+package com.example.landapp.controller;
+
+import com.example.landapp.dto.*;
+import com.example.landapp.entity.Investor;
+import com.example.landapp.entity.Owner;
+import com.example.landapp.service.InvestorService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/landapp/investors")
+public class InvestorController {
+
+    @Autowired
+    private InvestorService investorService;
+
+    // 2. SEARCH LAND (Filtering)
+    @GetMapping("/search")
+    public ResponseEntity<List<LandListingResponseDTO>> searchLand(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Double maxPrice) {
+
+// 1. Capture the actual results from the service
+        List<LandListingResponseDTO> searchResults = investorService.searchLandListings(keyword, maxPrice);
+
+        // 2. Return the results as JSON!
+        return new ResponseEntity<>(searchResults, HttpStatus.OK);
+    }
+
+    // 3. ASK A QUESTION
+    @PostMapping("/listings/{listingId}/questions")
+    public ResponseEntity<String> askQuestion(
+            @PathVariable Long listingId,
+            @RequestBody QuestionRequest request) {
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        Investor currentInvestor = (Investor) authentication.getPrincipal();
+
+        investorService.askQuestion(currentInvestor.getId(), listingId, request.content());
+        return new ResponseEntity<>("Question submitted successfully", HttpStatus.CREATED);
+    }
+
+
+
+    // 4. SUBMIT A REVIEW
+
+    @PostMapping("/listings/{listingId}/reviews")
+    public ResponseEntity<String> submitReview(
+            @PathVariable Long listingId,
+            @RequestBody ReviewRequest request) {
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        Investor currentInvestor = (Investor) authentication.getPrincipal();
+
+        investorService.submitReview(currentInvestor.getId(), listingId, request.rating(), request.reviewText());
+        return new ResponseEntity<>("Review submitted successfully", HttpStatus.CREATED);
+    }
+
+    @PostMapping("/listings/{listingId}/inquiry")
+    public ResponseEntity<String> inquire(
+            @PathVariable Long listingId,
+            @RequestBody InquiryRequest request) {
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        Investor currentInvestor = (Investor) authentication.getPrincipal();
+
+        investorService.inquireAboutLand(currentInvestor.getId(), listingId, request.message());
+
+        // Changed to just return a simple success string, since the detailed view is now in their dashboard
+        return new ResponseEntity<>("Inquiry sent successfully to the owner.", HttpStatus.CREATED);
+    }
+
+    // 2. Investor checks their inquiries (Where they see the failsafe number!)
+    @GetMapping("/inquiries")
+    public ResponseEntity<List<InvestorInquiryResponseDTO>> getMyInquiries() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        Investor currentInvestor = (Investor) authentication.getPrincipal();
+
+        List<InvestorInquiryResponseDTO> responses = investorService.getInvestorInquiries(currentInvestor.getId());
+        return new ResponseEntity<>(responses, HttpStatus.OK);
+    }
+
+
+
+    @GetMapping("/me")
+    public ResponseEntity<InvestorResponseDTO> getInvestor() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        Investor currentInvestor = (Investor) authentication.getPrincipal();
+
+        InvestorResponseDTO response = investorService.getInvestorById(currentInvestor.getId());
+        return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
+    /*
+      This endpoint allows the Investor to update their profile details.
+    */
+    @PutMapping("/me")
+    public ResponseEntity<String> updateInvestorProfile(@RequestBody InvestorUpdateDTO updateDto) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        Investor currentInvestor = (Investor) authentication.getPrincipal();
+
+        investorService.updateInvestorProfile(currentInvestor.getId(), updateDto);
+        return new ResponseEntity<>("Investor profile updated successfully", HttpStatus.OK);
+    }
+}
+
+// Local records for incoming JSON payloads
+record QuestionRequest(String content) {}
+record ReviewRequest(int rating, String reviewText) {}
+record InquiryRequest(String message) {}
+--- FILE: src/main/java/com/example/landapp/controller/OwnerController.java ---
+
+package com.example.landapp.controller;
+import com.example.landapp.dto.*;
+import com.example.landapp.entity.ContactMethod;
+import com.example.landapp.entity.Owner;
+import com.example.landapp.service.OwnerService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/landapp/owners")
+public class OwnerController {
+
+    @Autowired
+    private OwnerService ownerService;
+
+    /*
+      This is for the Owner to create a new land listing WITH images and deeds.
+     */
+    @PostMapping(value = "/listings", consumes = { MediaType.MULTIPART_FORM_DATA_VALUE })
+    public ResponseEntity<String> createListing(
+            @RequestPart("landData") LandListingCreateDTO dto,
+            @RequestPart("images") List<MultipartFile> images,
+            @RequestPart("deedDocument") MultipartFile deedDocument) {
+
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            Owner currentOwner = (Owner) authentication.getPrincipal();
+
+            dto.setOwnerId(currentOwner.getId());
+
+            // Pass the files to the service along with the DTO!
+            ownerService.createListing(dto, images, deedDocument);
+
+            return new ResponseEntity<>("Land listing created successfully", HttpStatus.CREATED);
+        } catch (Exception e) {
+            return new ResponseEntity<>("Failed to create listing: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /*
+      This is for the Owner to update the land listing.
+    */
+    @PutMapping("/listings/{listingId}")
+    public ResponseEntity<String> updateListing(
+            @PathVariable Long listingId,
+            @RequestBody LandListingCreateDTO dto) {
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        Owner currentOwner = (Owner) authentication.getPrincipal();
+
+        // Pass the secure ID to ensure the service knows WHO is updating this!
+        dto.setOwnerId(currentOwner.getId());
+        ownerService.updateListing(listingId, dto);
+
+        return new ResponseEntity<>("Land listing updated successfully", HttpStatus.OK);
+    }
+
+    /*
+      This is for the Owner to delete the land listing.
+    */
+    @DeleteMapping("/listings/{listingId}")
+    public ResponseEntity<String> deleteListing(@PathVariable Long listingId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        Owner currentOwner = (Owner) authentication.getPrincipal();
+
+        ownerService.deleteListing(listingId, currentOwner.getId());
+        return new ResponseEntity<>("Land listing deleted successfully", HttpStatus.OK);
+    }
+
+    /*
+    For the Owner to answer a question regarding a landListing , to the Investor.
+    */
+    @PostMapping("/questions/{questionId}/answer")
+    public ResponseEntity<String> answerQuestion(
+            @PathVariable Long questionId,
+            @RequestBody AnswerRequest request) {
+
+        // Note: Your service might need to be updated to accept the ownerId
+        // to verify they actually own the listing this question is attached to!
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        Owner currentOwner = (Owner) authentication.getPrincipal();
+
+        ownerService.answerQuestion(questionId, currentOwner.getId(),request.content());
+        return new ResponseEntity<>("Question answered successfully", HttpStatus.OK);
+    }
+
+    /*
+    This endpoint allows the Owner to view all their land listings.
+    */
+    @GetMapping("/listings")
+    public ResponseEntity<List<LandListingResponseDTO>> getOwnerListings() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        Owner currentOwner = (Owner) authentication.getPrincipal();
+
+        List<LandListingResponseDTO> listings = ownerService.getOwnerListings(currentOwner.getId());
+        return new ResponseEntity<>(listings, HttpStatus.OK);
+    }
+
+    @GetMapping("/inquiries")
+    public ResponseEntity<List<OwnerInboxResponseDTO>> getMyInquiries() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        Owner currentOwner = (Owner) authentication.getPrincipal();
+
+        List<OwnerInboxResponseDTO> inquiries = ownerService.getOwnerInquiries(currentOwner.getId());
+        return new ResponseEntity<>(inquiries, HttpStatus.OK);
+    }
+
+    // Owner clicks "Reply via Email" or "Reply via Phone"
+    @PostMapping("/inquiries/{inquiryId}/reply")
+    public ResponseEntity<String> replyToInquiry(
+            @PathVariable Long inquiryId,
+            @RequestBody ReplyRequest request) {
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        Owner currentOwner = (Owner) authentication.getPrincipal();
+
+        ownerService.replyToInquiry(inquiryId, currentOwner.getId(), request.method());
+        return new ResponseEntity<>("Inquiry updated successfully", HttpStatus.OK);
+    }
+
+    /*
+      This endpoint fetches the logged-in owner's profile.
+      Changed path from /{ownerId} to /me for better REST practice!
+    */
+    @GetMapping("/me")
+    public ResponseEntity<OwnerResponseDTO> getOwner() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        Owner currentOwner = (Owner) authentication.getPrincipal();
+
+        OwnerResponseDTO response = ownerService.getOwnerById(currentOwner.getId());
+        return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
+    @PutMapping("/me")
+    public ResponseEntity<String> updateOwnerProfile(@RequestBody OwnerUpdateDTO updateDto) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        Owner currentOwner = (Owner) authentication.getPrincipal();
+
+        ownerService.updateOwnerProfile(currentOwner.getId(), updateDto);
+        return new ResponseEntity<>("Owner profile updated successfully", HttpStatus.OK);
+    }
+}
+
+// A quick local record just to catch the incoming JSON answer text!
+record AnswerRequest(String content) {}
+record ReplyRequest(ContactMethod method) {}
+--- FILE: src/main/java/com/example/landapp/controller/LandListingController.java ---
+
+package com.example.landapp.controller;
+
+import com.example.landapp.dto.*;
+import com.example.landapp.service.LandAuthenticatorService;
+import com.example.landapp.service.LandListingService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/listings")
+public class LandListingController {
+
+    @Autowired
+    private LandListingService landListingService;
+
+    @Autowired
+    private LandAuthenticatorService authenticatorService;
+
+    // 1. Fetch the main property details
+    @GetMapping("/{listingId}")
+    public ResponseEntity<LandListingResponseDTO> getListing(@PathVariable Long listingId) {
+        LandListingResponseDTO response = landListingService.getListingById(listingId);
+        return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
+    // 2. Fetch the Q&A section
+    @GetMapping("/{listingId}/questions")
+    public ResponseEntity<List<QuestionResponseDTO>> getListingQuestions(@PathVariable Long listingId) {
+        List<QuestionResponseDTO> responses = landListingService.getListingQuestions(listingId);
+        return new ResponseEntity<>(responses, HttpStatus.OK);
+    }
+
+    // 3. Fetch the reviews for the property owner
+    @GetMapping("/{listingId}/reviews")
+    public ResponseEntity<List<ReviewResponseDTO>> getListingReviews(@PathVariable Long listingId) {
+        List<ReviewResponseDTO> responses = landListingService.getListingReviews(listingId);
+        return new ResponseEntity<>(responses, HttpStatus.OK);
+    }
+
+    // 4. Fetch ALL land listings for the public catalog
+    @GetMapping
+    public ResponseEntity<List<LandListingResponseDTO>> getAllListings() {
+        List<LandListingResponseDTO> responses = landListingService.getAllListings();
+        return new ResponseEntity<>(responses, HttpStatus.OK);
+    }
+
+    // Submit approval or rejection
+    @PostMapping("/verify-land")
+    public ResponseEntity<String> verifyLand(@RequestBody AuthenticationDecisionDTO decision) {
+        authenticatorService.authenticateLand(decision);
+        return ResponseEntity.ok("Verification status updated to: " + (decision.isApproved() ? "APPROVED" : "REJECTED"));
+    }
+
+    // GET: Display the "Inbox" of pending lands
+    @GetMapping("/pending")
+    public ResponseEntity<List<LandListingDetailDTO>> getPendingListings() {
+        return ResponseEntity.ok(authenticatorService.getPendingListings());
+    }
+
+    // GET: Display full details when a specific land is clicked
+    @GetMapping("/details/{id}")
+    public ResponseEntity<LandListingDetailDTO> getListingDetails(@PathVariable Long id) {
+        return ResponseEntity.ok(authenticatorService.getListingById(id));
+    }
+
+}
+--- FILE: src/main/java/com/example/landapp/dto/AnswerRequestDTO.java ---
+
+package com.example.landapp.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import lombok.Data;
+
+@Data
+public class AnswerRequestDTO {
+
+    @NotNull(message = "Owner ID is required to verify authorization")
+    private Long ownerId;
+
+    @NotNull(message = "Land ID is required to verify ")
+    private Long landlistingId;
+
+    @NotBlank(message = "Answer content cannot be empty")
+    private String content;
+}
+
+--- FILE: src/main/java/com/example/landapp/dto/AnswerResponseDTO.java ---
+
+package com.example.landapp.dto;
+
+import lombok.Data;
+
+import java.time.LocalDateTime;
+
+@Data
+public class AnswerResponseDTO {
+    private Long id;
+    private Long landListingId;
+    private String content;
+    private LocalDateTime answeredAt;
+}
+
+--- FILE: src/main/java/com/example/landapp/dto/LoginDTO.java ---
+
+package com.example.landapp.dto;
+
+import lombok.Data;
+
+@Data
+public class LoginDTO {
+    private String email;
+    private String password;
+}
+--- FILE: src/main/java/com/example/landapp/dto/QuestionRequestDTO.java ---
+
+package com.example.landapp.dto;
+
+import lombok.Data;
+
+@Data
+
+public class QuestionRequestDTO {
+    private Long buyerId;    // Who is asking
+    private Long landId;     // Which land are they asking about
+    private String content;  // The question text
+}
+
+--- FILE: src/main/java/com/example/landapp/dto/QuestionResponseDTO.java ---
+
+package com.example.landapp.dto;
+
+import lombok.Data;
+
+import java.time.LocalDateTime;
+@Data
+
+public class QuestionResponseDTO {
+    private Long id;
+    private String content;
+    private LocalDateTime createdAt;
+
+    // Nested Answer DTO (null if not yet answered)
+    private AnswerResponseDTO answer;
+}
+
+--- FILE: src/main/java/com/example/landapp/dto/InvestorRegistrationDTO.java ---
+
+package com.example.landapp.dto;
+
+import lombok.Data;
+
+@Data
+public class InvestorRegistrationDTO {
+    private String firstName;
+    private String lastName;
+    private String email;
+    private String contactNumber;
+    private String passwordHash; // Raw password to be hashed
+}
+--- FILE: src/main/java/com/example/landapp/dto/LandListingCreateDTO.java ---
+
+package com.example.landapp.dto;
+import jakarta.validation.constraints.*;
+import lombok.*;
+import java.math.BigDecimal;
+
+@Data
+public class LandListingCreateDTO {
+
+    @NotBlank
+    @Size(max = 100)
+    private String title;
+
+    private String description;
+
+    @NotNull
+    @DecimalMin(value = "0.0", inclusive = false)
+    private BigDecimal price;
+
+    @NotNull
+    @Positive
+    private Double area;
+
+    @NotBlank
+    private String location;
+
+    private String landType;
+
+    @NotNull
+    private Long ownerId;
+
+    @NotNull
+    private Double latitude;
+
+    @NotNull
+    private Double longitude;
+
+    // NOTE: We do NOT include authenticatorId or verificationStatus here.
+    // Reason: When an Owner creates a listing, they don't choose who verifies it.
+    // The verificationStatus is automatically set to PENDING_VERIFICATION by @PrePersist.
+    // The authenticatorId is assigned later by the system when a LandAuthenticator
+    // picks up the listing to review it — that is a separate API call/flow entirely.
+
+
+}
+
+--- FILE: src/main/java/com/example/landapp/dto/OverpassResponseDTO.java ---
+
+package com.example.landapp.dto;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import lombok.Data;
+
+import java.util.List;
+import java.util.Map;
+
+@Data
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class OverpassResponseDTO {
+
+    private List<Elements> elements;
+
+    @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class Elements{
+        private Map<String,String> tags;
+    }
+}
+
+--- FILE: src/main/java/com/example/landapp/dto/OwnerRegistrationDTO.java ---
+
+package com.example.landapp.dto;
+
+import lombok.Data;
+
+@Data
+public class OwnerRegistrationDTO {
+    private String firstName;
+    private String lastName;
+    private String email;
+    private String contactNumber;
+    private String passwordHash; // Raw password to be hashed
+}
+--- FILE: src/main/java/com/example/landapp/dto/LandListingResponseDTO.java ---
+
+package com.example.landapp.dto;
+import lombok.*;
+
+import java.io.Serializable;
+import java.math.BigDecimal;
+import java.util.Date;
+import java.util.List;
+
+@Data
+public class LandListingResponseDTO  implements Serializable {
+
+    private Long id;
+    private String title;
+    private String description;
+    private BigDecimal price;
+    private Double area;
+    private String location;
+    private String landType;
+    private String status;
+    private Date postedDate;
+
+    // Frontend can see only owner name
+    private String ownerName;
+
+    // Frontend needs to know the verification state of the listing
+    private String verificationStatus;
+
+    //  When was this listing verified (null if still pending or rejected)
+    private Date verifiedAt;
+
+
+
+    // The professional registration number of the authenticator
+    // Useful for the investor to verify the legitimacy of who validated the listing
+    private String authenticatorRegNumber;
+
+    private List<String> imageUrls;
+    private List<String> deedDocumentUrls;
+}
+
+--- FILE: src/main/java/com/example/landapp/dto/AuthenticatorUpdateDTO.java ---
+
+package com.example.landapp.dto;
+
+import lombok.Data;
+
+@Data
+public class AuthenticatorUpdateDTO {
+    private String firstName;
+    private String lastName;
+    private String contactNumber;
+    private String professionalRegNumber;
+}
+
+--- FILE: src/main/java/com/example/landapp/dto/InvestorUpdateDTO.java ---
+
+package com.example.landapp.dto;
+
+import java.math.BigDecimal;
+
+public record InvestorUpdateDTO(
+        String firstName,
+        String lastName,
+        String contactNumber,
+        String preferredLocation,
+        BigDecimal investmentBudget
+) {}
+
+--- FILE: src/main/java/com/example/landapp/dto/LandAuthenticatorRegistrationDTO.java ---
+
+package com.example.landapp.dto;
+
+import lombok.Data;
+
+@Data
+public class LandAuthenticatorRegistrationDTO {
+    private String firstName;
+    private String lastName;
+    private String email;
+    private String contactNumber;
+    private String passwordHash;
+    private String professionalRegNumber; // The unique field!
+}
+--- FILE: src/main/java/com/example/landapp/dto/OwnerUpdateDTO.java ---
+
+package com.example.landapp.dto;
+
+import java.math.BigDecimal;
+
+public record OwnerUpdateDTO(
+        String firstName,
+        String lastName,
+        String contactNumber
+) {}
+--- FILE: src/main/java/com/example/landapp/dto/AuthenticationDecisionDTO.java ---
+
+package com.example.landapp.dto;
+
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class AuthenticationDecisionDTO {
+    private long ListingId;
+    private long authenticatorId;
+    private boolean approved;
+    private String comments;
+
+
+}
+
+--- FILE: src/main/java/com/example/landapp/dto/InvestorInquiryResponseDTO.java ---
+
+package com.example.landapp.dto;
+
+import com.example.landapp.entity.InquiryStatus;
+import lombok.Data;
+import java.time.LocalDateTime;
+
+@Data
+public class InvestorInquiryResponseDTO {
+    private Long inquiryId;
+    private String landTitle;
+    private String ownerFullName;
+    private InquiryStatus status;
+
+    // This is the magic field that updates based on the Owner's action!
+    private String platformUpdateMessage;
+
+    private LocalDateTime createdAt;
+}
+
+--- FILE: src/main/java/com/example/landapp/dto/InvestorResponseDTO.java ---
+
+package com.example.landapp.dto;
+
+import lombok.Data;
+
+@Data
+public class InvestorResponseDTO {
+    private Long id;
+    private String firstName;
+    private String lastName;
+    private String email;
+    private String contactNumber;
+    private String ricCode;
+    // Password is safely excluded!
+}
+--- FILE: src/main/java/com/example/landapp/dto/LoginResponseDTO.java ---
+
+package com.example.landapp.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
+public class LoginResponseDTO {
+
+    // The actual JWT token
+    private String token;
+
+    // How long until it expires (in milliseconds)
+    private long expiresIn;
+
+    // --- Extra fields to make your Next.js frontend development way easier ---
+    private Long userId;
+    private String firstName;
+    private String userType; // e.g., "OWNER", "INVESTOR", or "AUTHENTICATOR"
+    private String ricCode;
+}
+
+--- FILE: src/main/java/com/example/landapp/dto/OwnerInboxResponseDTO.java ---
+
+package com.example.landapp.dto;
+
+import com.example.landapp.entity.InquiryStatus;
+import lombok.Data;
+import java.time.LocalDateTime;
+
+@Data
+public class OwnerInboxResponseDTO {
+    private Long inquiryId;
+    private Long landListingId;
+    private String landTitle;
+    private String customMessage;
+
+    // Updated to Full Name
+    private String investorFullName;
+    private String investorContactNumber;
+    private String investorEmail;
+
+    private InquiryStatus status;
+    private LocalDateTime createdAt;
+}
+--- FILE: src/main/java/com/example/landapp/dto/OwnerResponseDTO.java ---
+
+package com.example.landapp.dto;
+
+import lombok.Data;
+
+@Data
+public class OwnerResponseDTO {
+    private Long id;
+    private String firstName;
+    private String lastName;
+    private String email;
+    private String contactNumber;
+    private Double trustScore;
+    private String ricCode;
+    // Note: We excluded passwordHash for security!
+}
+--- FILE: src/main/java/com/example/landapp/dto/ReviewResponseDTO.java ---
+
+package com.example.landapp.dto;
+
+import lombok.Data;
+import java.time.LocalDateTime;
+
+@Data
+public class ReviewResponseDTO {
+    private Long id;
+    private int rating;
+    private String comment;
+    private String investorName;
+    private LocalDateTime createdAt;
+}
+--- FILE: src/main/java/com/example/landapp/dto/LandListingDetailDTO.java ---
+
+package com.example.landapp.dto;
+
+import com.example.landapp.entity.VerificationStatus;
+import lombok.Builder;
+import lombok.Data;
+
+import java.math.BigDecimal;
+import java.util.List;
+
+@Data
+@Builder
+public class LandListingDetailDTO {
+    private Long id;
+    private String title;
+    private String description;
+    private BigDecimal price;
+    private Double area;
+    private String location;
+    private String landType;
+    private VerificationStatus verificationStatus;
+    private List<String> imageUrls;
+    private List<String> deedDocumentUrls; // url for deed documents
+    private String ownerName;
+    private Double latitude;
+    private Double longitude;
+}
+
+--- FILE: src/main/java/com/example/landapp/entity/ListingStatus.java ---
+
+package com.example.landapp.entity;
+
+public enum ListingStatus {
+    AVAILABLE,
+    SOLD,
+    PENDING,
+    RESERVED
+}
+
+--- FILE: src/main/java/com/example/landapp/entity/Owner.java ---
+
+package com.example.landapp.entity;
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+
+import java.util.List;
+
+@Entity
+@Table(name = "owners")
+@Data
+@EqualsAndHashCode(callSuper = true)
+@NoArgsConstructor
+@AllArgsConstructor
+public class Owner extends BaseUser {
+
+    private Double trustScore = 0.0;
+
+    // Linking to the LandListing entity
+    @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<LandListing> landListings;
+
+
+}
+--- FILE: src/main/java/com/example/landapp/entity/Message.java ---
+
+package com.example.landapp.entity;
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+
+@Entity
+
+//set the name of the table on database manually
+@Table(name = "messages")
+
+@Inheritance(strategy = InheritanceType.JOINED)
+
+//automatically generates all setters/getters, toSting, equals and hashCode
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public abstract class Message {
+
+    //make primary key of Message entity
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+     private Long id;
+
+    @Column(columnDefinition = "TEXT", nullable = false)
+    private String content;
+
+    //Linking to the LandListing entity
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "listing_id")
+    private LandListing landListing;
+}
+
+--- FILE: src/main/java/com/example/landapp/entity/Answer.java ---
+
+package com.example.landapp.entity;
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "answers") // <-- FIX: Changed from "questions" to "answers"
+@Data
+@EqualsAndHashCode(callSuper = true)
+@NoArgsConstructor
+@AllArgsConstructor
+public class Answer extends Message {
+
+    @ManyToOne
+    @JoinColumn(name = "questionId", nullable = false)
+    private Question question;
+
+    @ManyToOne
+    @JoinColumn(name = "ownerId", nullable = false)
+    private Owner owner;
+
+    @CreationTimestamp
+    @Column(updatable = false, nullable = false)
+    private LocalDateTime answeredAt;
+}
+--- FILE: src/main/java/com/example/landapp/entity/Investor.java ---
+
+package com.example.landapp.entity;
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
+import java.util.List;
+
+@Entity
+@Table(name = "investors")
+@Data
+@EqualsAndHashCode(callSuper = true)
+@NoArgsConstructor
+public class Investor extends BaseUser {
+
+    // Additional investor-specific fields could go here
+    // e.g., investmentBudget or preferredRegions
+    private String preferredLocation;   // what areas they're interested in
+    private BigDecimal investmentBudget;    // budget range
+
+    // relationships
+    @OneToMany(mappedBy = "investor")
+    private List<Question> questions;
+
+    @OneToMany(mappedBy = "investor")
+    private List<Review> reviews;
+}
+
+--- FILE: src/main/java/com/example/landapp/entity/Question.java ---
+
+package com.example.landapp.entity;
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "questions")
+@Data
+@EqualsAndHashCode(callSuper = true)
+@NoArgsConstructor
+@AllArgsConstructor
+public class Question extends Message {
+
+    @CreationTimestamp //Automatically set the time when insert
+    @Column(updatable = false, nullable = false) //Ensure its never changed or null
+    private LocalDateTime createdAt;
+
+    @ManyToOne
+    @JoinColumn(name = "investorId", nullable = false)
+    private Investor investor;
+}
+
+--- FILE: src/main/java/com/example/landapp/entity/Review.java ---
+
+package com.example.landapp.entity;
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name="reviews")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor //generates a constructor that required one argument for every field
+public class Review {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private long id;
+
+    @Column(nullable = false)
+    private Integer rating;
+
+    @Column(columnDefinition = "TEXT")
+    private String comment;
+
+    @CreationTimestamp
+    @Column(updatable = false,nullable = false)
+    private LocalDateTime createdAt;
+
+    @ManyToOne
+    @JoinColumn(name = "investorId", nullable = false)
+    private Investor investor;
+
+    @ManyToOne
+    @JoinColumn(name = "ownerId", nullable = false)
+    private Owner owner;
+}
+
+--- FILE: src/main/java/com/example/landapp/entity/LandAuthenticator.java ---
+
+package com.example.landapp.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Entity
+@Table(name = "land_authenticators")
+@Data
+@EqualsAndHashCode(callSuper = true)
+@NoArgsConstructor
+@AllArgsConstructor
+public class LandAuthenticator extends BaseUser { // Extend BaseUser
+
+    @Column(name = "professional_reg_number", nullable = false, unique = true)
+    private String professionalRegNumber;
+
+    private BigDecimal walletBalance =BigDecimal.ZERO ;
+    // You can add a method or mapping here to link them to the listings they authenticate
+}
+
+--- FILE: src/main/java/com/example/landapp/entity/LandListing.java ---
+
+package com.example.landapp.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+import java.util.Date;
+import java.math.BigDecimal;
+import java.util.List;
+
+@Entity
+@Table(name = "land_listings")
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@Data
+public class LandListing {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false)
+    private String title;
+
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
+    @Column(nullable = false)
+    private BigDecimal price;
+
+    @Column(nullable = false)
+    private Double area; // Extracted from "Area (Acres/Perches)"
+
+    @Column(nullable = false)
+    private String location;
+
+    @Column(name = "land_type")
+    private String landType;
+
+    @Enumerated(EnumType.STRING)
+    private ListingStatus status; // e.g., AVAILABLE, SOLD, PENDING
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "verification_status", nullable = false)
+    private VerificationStatus verificationStatus;
+
+    @Temporal(TemporalType.TIMESTAMP)
+    @Column(name = "posted_date", updatable = false)
+    private Date postedDate;
+
+    @Temporal(TemporalType.TIMESTAMP)
+    @Column(name = "verified_at")
+    private Date verifiedAt;
+
+    // Relationship with the Owner entity
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "owner_id", nullable = false)
+    private Owner owner;
+
+    // nullable = true because when a listing is first created, no authenticator has been
+    // assigned yet. An authenticator is only linked AFTER they review the documents.
+    // This also means if an authenticator account is deleted, this becomes NULL safely
+    // and the listing is NOT deleted (avoids the CascadeType.REMOVE problem).
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "authenticator_id", nullable = true)
+    private LandAuthenticator landAuthenticator;
+
+    //Overpass inputs
+    @Column(name= "latitude")
+    private Double latitude;
+
+    @Column(name = "longitude")
+    private Double longitude;
+
+    // New fields for Overpass data
+    @Column(name = "osm_land_use")
+    private String osmLandUse; // e.g., residential, meadow, forest
+
+    @Column(name = "osm_amenities", columnDefinition = "TEXT")
+    private String osmAmenities; // comma-separated list of nearby features
+
+    @Column(name = "osm_access_road")
+    private String osmAccessRoad; // type of road leading to land
+
+    // --- NEW FIELDS FOR SUPABASE URLS ---
+
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "land_listing_images", joinColumns = @JoinColumn(name = "listing_id"))
+    @Column(name = "image_url", nullable = false)
+    private List<String> imageUrls;
+
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "land_listing_documents", joinColumns = @JoinColumn(name = "listing_id"))
+    @Column(name = "document_url", nullable = false)
+    private List<String> deedDocumentUrls;
+
+    //payment related field
+    @Column(name = "payment_session_id")
+    private String paymentSessionId;
+
+    @PrePersist
+    protected void onCreate() {
+        this.postedDate = new Date();
+        if (this.status == null) {
+            this.status = ListingStatus.AVAILABLE;
+        }
+        // Every listing starts as PENDING_VERIFICATION when first created
+        // Matches your State Machine: Owner Creates Listing → Draft → Upload Docs → Pending_Verification
+        if (this.verificationStatus == null) {
+            this.verificationStatus = VerificationStatus.PENDING_PAYMENT;
+        }
+    }
+}
+
+--- FILE: src/main/java/com/example/landapp/entity/BaseUser.java ---
+
+package com.example.landapp.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+
+import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
+
+@Entity
+@Table(name = "users")
+@Inheritance(strategy = InheritanceType.JOINED)
+@Getter // Use Getter/Setter instead of @Data for cleaner JPA inheritance
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+public abstract class BaseUser implements UserDetails {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String firstName;
+    private String lastName;
+
+    @Column(name = "ric_code", unique = true)
+    private String ricCode;
+
+    @Column(unique = true, nullable = false)
+    private String email;
+
+    private String contactNumber; // RESTORED
+
+    @Column(nullable = false)
+    private String passwordHash;
+
+    @CreationTimestamp
+    @Column(updatable = false)
+    private LocalDateTime createdAt; // RESTORED
+
+    @UpdateTimestamp
+    private LocalDateTime updatedAt; // RESTORED
+
+    // --- UserDetails Implementation ---
+
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return List.of();
+    }
+
+    @Override
+    public String getPassword() {
+        return this.passwordHash;
+    }
+
+    @Override
+    public String getUsername() {
+        return this.email;
+    }
+
+    @Override
+    public boolean isAccountNonExpired() { return true; }
+
+    @Override
+    public boolean isAccountNonLocked() { return true; }
+
+    @Override
+    public boolean isCredentialsNonExpired() { return true; }
+
+    @Override
+    public boolean isEnabled() { return true; }
+}
+--- FILE: src/main/java/com/example/landapp/entity/ContactMethod.java ---
+
+package com.example.landapp.entity;
+
+public enum ContactMethod {
+    EMAIL,
+    PHONE
+}
+--- FILE: src/main/java/com/example/landapp/entity/Inquiry.java ---
+
+package com.example.landapp.entity;
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "inquiries")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class Inquiry {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne
+    @JoinColumn(name = "investorId", nullable = false)
+    private Investor investor;
+
+    @ManyToOne
+    @JoinColumn(name = "ownerId", nullable = false)
+    private Owner owner;
+
+    @ManyToOne
+    @JoinColumn(name = "landListingId", nullable = false)
+    private LandListing landListing;
+
+    @Column(columnDefinition = "TEXT")
+    private String message;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private InquiryStatus status = InquiryStatus.PENDING;
+
+    // NEW: Tracks how the owner decided to reach out
+    @Enumerated(EnumType.STRING)
+    private ContactMethod chosenContactMethod;
+
+    @CreationTimestamp
+    @Column(updatable = false, nullable = false)
+    private LocalDateTime createdAt;
+}
+--- FILE: src/main/java/com/example/landapp/entity/InquiryStatus.java ---
+
+package com.example.landapp.entity;
+
+public enum InquiryStatus {
+    PENDING,
+    CONTACTED,
+    CLOSED
+}
+--- FILE: src/main/java/com/example/landapp/entity/VerificationStatus.java ---
+
+package com.example.landapp.entity;
+
+public enum VerificationStatus {
+    PENDING_VERIFICATION,
+    PENDING_PAYMENT,
+    APPROVED,
+    REJECTED
+}
+
+--- FILE: src/main/java/com/example/landapp/mapper/InvestorMapper.java ---
+
+package com.example.landapp.mapper;
+
+import com.example.landapp.dto.InvestorRegistrationDTO;
+import com.example.landapp.dto.InvestorResponseDTO;
+import com.example.landapp.entity.Investor;
+import org.springframework.stereotype.Component;
+
+@Component
+public class InvestorMapper {
+
+
+    public Investor toEntity(InvestorRegistrationDTO dto) {//  Request -> Entity
+        if (dto == null) return null;
+
+        Investor investor = new Investor();
+        investor.setFirstName(dto.getFirstName());
+        investor.setLastName(dto.getLastName());
+        investor.setEmail(dto.getEmail());
+        investor.setContactNumber(dto.getContactNumber());
+        // passwordHash will be handled in the Service
+        return investor;
+    }
+
+
+    public InvestorResponseDTO toResponseDTO(Investor investor) { // Entity -> Response DTO
+        if (investor == null) return null;
+
+        InvestorResponseDTO dto = new InvestorResponseDTO();
+        dto.setId(investor.getId());
+        dto.setFirstName(investor.getFirstName());
+        dto.setLastName(investor.getLastName());
+        dto.setEmail(investor.getEmail());
+        dto.setContactNumber(investor.getContactNumber());
+        return dto;
+    }
+}
+--- FILE: src/main/java/com/example/landapp/mapper/OwnerMapper.java ---
+
+package com.example.landapp.mapper;
+
+import com.example.landapp.dto.OwnerRegistrationDTO;
+import com.example.landapp.dto.OwnerResponseDTO;
+import com.example.landapp.entity.Owner;
+import org.springframework.stereotype.Component;
+
+@Component
+public class OwnerMapper {
+
+
+    public Owner toEntity(OwnerRegistrationDTO dto) { //  Registration Request -> Entity
+        if (dto == null) return null;
+
+        Owner owner = new Owner();
+        owner.setFirstName(dto.getFirstName());
+        owner.setLastName(dto.getLastName());
+        owner.setEmail(dto.getEmail());
+        owner.setContactNumber(dto.getContactNumber());
+        // passwordHash will be set in the Service after hashing
+        return owner;
+    }
+
+
+    public OwnerResponseDTO toResponseDTO(Owner owner) { // Entity -> Response DTO (for the Frontend)
+        if (owner == null) return null;
+
+        OwnerResponseDTO dto = new OwnerResponseDTO();
+        dto.setId(owner.getId());
+        dto.setFirstName(owner.getFirstName());
+        dto.setLastName(owner.getLastName());
+        dto.setEmail(owner.getEmail());
+        dto.setContactNumber(owner.getContactNumber());
+        dto.setTrustScore(owner.getTrustScore());
+        return dto;
+    }
+}
+--- FILE: src/main/java/com/example/landapp/mapper/LandListingMapper.java ---
+
+package com.example.landapp.mapper;
+
+import com.example.landapp.dto.LandListingCreateDTO;
+import com.example.landapp.dto.LandListingDetailDTO;
+import com.example.landapp.dto.LandListingResponseDTO;
+import com.example.landapp.entity.LandListing;
+import com.example.landapp.service.MapDataGetting;
+import org.springframework.stereotype.Component;
+
+@Component
+public class LandListingMapper {
+
+    // 1. DTO -> Entity (For Creating)
+    public LandListing toEntity(LandListingCreateDTO dto) {
+        if (dto == null) return null;
+
+        LandListing listing = new LandListing();
+        listing.setTitle(dto.getTitle());
+        listing.setDescription(dto.getDescription());
+        listing.setPrice(dto.getPrice());
+        listing.setArea(dto.getArea());
+        listing.setLocation(dto.getLocation());
+        listing.setLandType(dto.getLandType());
+        listing.setLatitude(dto.getLatitude());
+        listing.setLongitude(dto.getLongitude());
+
+        // owner, status, and postedDate are handled in the Service or @PrePersist
+        return listing;
+    }
+
+    public void addMapDataToEntity(LandListing entity, MapDataGetting.MapDataResult mapData) {
+        if (mapData == null) return;
+
+        // Saving specific OSM audit data to the database
+        entity.setOsmLandUse(mapData.getSuggestedLandType());
+        entity.setOsmAmenities(mapData.getAmenities());
+        entity.setOsmAccessRoad(mapData.getAccessRoad());
+
+        // Fill the main LandType if the user left it empty on the website form
+        if (entity.getLandType() == null || entity.getLandType().isEmpty()) {
+            entity.setLandType(mapData.getSuggestedLandType());
+        }
+    }
+
+    // 2. Entity -> Response DTO (For Reading)
+    public LandListingResponseDTO toResponseDTO(LandListing land) {
+        if (land == null) return null;
+
+        LandListingResponseDTO dto = new LandListingResponseDTO();
+        dto.setId(land.getId());
+        dto.setTitle(land.getTitle());
+        dto.setDescription(land.getDescription());
+        dto.setPrice(land.getPrice());
+        dto.setArea(land.getArea());
+        dto.setLocation(land.getLocation());
+        dto.setLandType(land.getLandType());
+        dto.setPostedDate(land.getPostedDate());
+        dto.setVerifiedAt(land.getVerifiedAt());
+        dto.setImageUrls(land.getImageUrls());
+        dto.setDeedDocumentUrls(land.getDeedDocumentUrls());
+
+        // Convert the Enum to a String safely
+        if (land.getStatus() != null) {
+            dto.setStatus(land.getStatus().name());
+        }
+        if (land.getVerificationStatus() != null) {
+            dto.setVerificationStatus(land.getVerificationStatus().name());
+        }
+
+        // Flatten the owner data safely (assuming Owner has firstName/lastName like Investor)
+        if (land.getOwner() != null) {
+            dto.setOwnerName(land.getOwner().getFirstName() + " " + land.getOwner().getLastName());
+        }
+
+        if (land.getLandAuthenticator() != null) {
+            dto.setAuthenticatorRegNumber(
+                    land.getLandAuthenticator().getProfessionalRegNumber()
+            );
+        }
+
+        return dto;
+    }
+
+    // 3. Update Existing Entity (Keeps your Service layer clean)
+    public void updateEntityFromDto(LandListingCreateDTO dto, LandListing existing) {
+        if (dto == null || existing == null) return;
+
+        existing.setTitle(dto.getTitle());
+        existing.setDescription(dto.getDescription());
+        existing.setPrice(dto.getPrice());
+        existing.setArea(dto.getArea());
+        existing.setLocation(dto.getLocation());
+        existing.setLandType(dto.getLandType());
+
+        // Note: We intentionally do NOT update the ID, Owner, Status, or Date here.
+    }
+
+    public LandListingDetailDTO toDetailDTO(LandListing land) {
+        if (land == null) {
+            return null;
+        }
+        return LandListingDetailDTO.builder()
+                .id(land.getId())
+                .title(land.getTitle())
+                .description(land.getDescription())
+                .price(land.getPrice())
+                .area(land.getArea())
+                .location(land.getLocation())
+                .landType(land.getLandType())
+                .verificationStatus(land.getVerificationStatus())
+                .imageUrls(land.getImageUrls())
+                .deedDocumentUrls(land.getDeedDocumentUrls())
+                // Safe null check for owner
+                .ownerName(land.getOwner() != null ?
+                        land.getOwner().getFirstName() + " " + land.getOwner().getLastName() :
+                        "N/A")
+                .latitude(land.getLatitude())
+                .longitude(land.getLongitude())
+                .build();
+    }
+}
+
+--- FILE: src/main/java/com/example/landapp/repository/InvestorRepository.java ---
+
+package com.example.landapp.repository;
+
+import com.example.landapp.entity.Investor;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import java.util.Optional;
+
+@Repository
+public interface InvestorRepository extends JpaRepository<Investor, Long> {
+
+
+}
+
+--- FILE: src/main/java/com/example/landapp/repository/LandAuthenticatorRepository.java ---
+
+package com.example.landapp.repository;
+
+import com.example.landapp.entity.LandAuthenticator;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
+
+@Repository
+public interface LandAuthenticatorRepository extends JpaRepository<LandAuthenticator, Long> {
+
+    // Useful for logging in
+    Optional<LandAuthenticator> findByUsername(String username);
+
+    // Useful for checking if a professional is already registered
+    Optional<LandAuthenticator> findByEmail(String email);
+
+    Optional<LandAuthenticator> findByProfessionalRegNumber(String regNumber);
+}
+--- FILE: src/main/java/com/example/landapp/repository/OwnerRepository.java ---
+
+package com.example.landapp.repository;
+
+import com.example.landapp.entity.Owner;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import java.util.Optional;
+
+/*
+What is the purpose of a repository ?
+
+This interface acts like a communicator between the database and the backend .
+custom Sql queries can be inserted inside this repo .
+
+by extending this preBuilt JpaRepository
+you immediately get these methods for free without writing a single line of SQL
+
+.save(entity) (Used for both Create and Update)
+.findById(id)
+.findAll()
+.deleteById(id)
+.count()
+* */
+
+@Repository
+public interface OwnerRepository extends JpaRepository<Owner, Long> {
+
+}
+--- FILE: src/main/java/com/example/landapp/repository/QuestionRepository.java ---
+
+
+package com.example.landapp.repository;
+
+import com.example.landapp.entity.Question;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+
+public interface QuestionRepository extends JpaRepository<Question, Long> {
+
+    // Find all questions for a specific land listing
+    List<Question> findByLandListing_Id(Long landListingId);
+
+}
+--- FILE: src/main/java/com/example/landapp/repository/AnswerRepository.java ---
+
+package com.example.landapp.repository;
+
+import com.example.landapp.entity.Answer;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
+
+@Repository
+public interface AnswerRepository extends JpaRepository<Answer, Long> {
+
+    // Find an answer by the Question ID it belongs to
+    Optional<Answer> findByLandListing_Id(Long landListingId);
+
+    Optional<Answer> findByQuestionId(Long questionId);
+}
+
+--- FILE: src/main/java/com/example/landapp/repository/InquiryRepository.java ---
+
+package com.example.landapp.repository;
+
+import com.example.landapp.entity.Inquiry;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public interface InquiryRepository extends JpaRepository<Inquiry, Long> {
+
+    // For the Owner's inbox
+    List<Inquiry> findByOwnerIdOrderByCreatedAtDesc(Long ownerId);
+
+    // For the Investor's history/dashboard
+    List<Inquiry> findByInvestorIdOrderByCreatedAtDesc(Long investorId);
+
+    boolean existsByInvestorIdAndLandListingId(Long investorId, Long landListingId);
+}
+--- FILE: src/main/java/com/example/landapp/repository/ReviewRepository.java ---
+
+package com.example.landapp.repository;
+
+import com.example.landapp.entity.Question;
+import com.example.landapp.entity.Review;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+
+public interface ReviewRepository extends JpaRepository<Review, Long> {
+
+    List<Review> findByOwnerId(Long ownerId);
+}
+
+--- FILE: src/main/java/com/example/landapp/repository/UserRepository.java ---
+
+package com.example.landapp.repository;
+
+import com.example.landapp.entity.BaseUser;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
+
+@Repository
+public interface UserRepository extends JpaRepository<BaseUser, Long> {
+    // This method will now search the 'users' table
+    // and return the specific subclass (Owner/Investor/etc.)
+    Optional<BaseUser> findByEmail(String email);
+    boolean existsByRicCode(String ricCode);
+
+}
+--- FILE: src/main/java/com/example/landapp/repository/LandListingRepository.java ---
+
+package com.example.landapp.repository;
+
+import com.example.landapp.entity.LandListing;
+import com.example.landapp.entity.ListingStatus;
+import com.example.landapp.entity.VerificationStatus;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import java.util.List;
+import java.util.Optional;
+
+@Repository
+public interface LandListingRepository extends JpaRepository<LandListing, Long> {
+
+    // Spring Boot writes the SQL for this automatically!
+    List<LandListing> findByOwnerId(Long ownerId);
+
+    List<LandListing> findByOwnerIdAndVerificationStatus(Long ownerId, VerificationStatus verificationStatus);
+
+    List<LandListing> findByOwnerIdAndStatus(Long ownerId, ListingStatus status);
+
+    List<LandListing> findByStatus(ListingStatus status);
+
+    Optional<LandListing> findByPaymentSessionId(String paymentSessionId);
+
+    // Finds all lands waiting for verification
+    List<LandListing> findByVerificationStatus(VerificationStatus status);
+}
+--- FILE: src/main/java/com/example/landapp/service/JwtService.java ---
+
+package com.example.landapp.service;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.security.Keys;
+import java.security.Key;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Function;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Service;
+
+@Service
+public class JwtService {
+    @Value("${security.jwt.secret-key}")
+    private String secretKey;
+
+    @Value("${security.jwt.expiration-time}")
+    private long jwtExpiration;
+
+    public String extractUsername(String token) {
+        return extractClaim(token, Claims::getSubject);
+    }
+
+    public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
+        final Claims claims = extractAllClaims(token);
+        return claimsResolver.apply(claims);
+    }
+
+    public String generateToken(UserDetails userDetails) {
+        return generateToken(new HashMap<>(), userDetails);
+    }
+
+    public String generateToken(Map<String, Object> extraClaims, UserDetails userDetails) {
+        return buildToken(extraClaims, userDetails, jwtExpiration);
+    }
+
+    public long getExpirationTime() {
+        return jwtExpiration;
+    }
+
+    private String buildToken(
+            Map<String, Object> extraClaims,
+            UserDetails userDetails,
+            long expiration
+    ) {
+        return Jwts
+                .builder()
+                .setClaims(extraClaims)
+                .setSubject(userDetails.getUsername())
+                .setIssuedAt(new Date(System.currentTimeMillis()))
+                .setExpiration(new Date(System.currentTimeMillis() + expiration))
+                .signWith(getSignInKey(), SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    public boolean isTokenValid(String token, UserDetails userDetails) {
+        final String username = extractUsername(token);
+        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
+    }
+
+    private boolean isTokenExpired(String token) {
+        return extractExpiration(token).before(new Date());
+    }
+
+    private Date extractExpiration(String token) {
+        return extractClaim(token, Claims::getExpiration);
+    }
+
+    private Claims extractAllClaims(String token) {
+        return Jwts
+                .parserBuilder()
+                .setSigningKey(getSignInKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+    }
+
+    private Key getSignInKey() {
+        byte[] keyBytes = Decoders.BASE64.decode(secretKey);
+        return Keys.hmacShaKeyFor(keyBytes);
+    }
+}
+--- FILE: src/main/java/com/example/landapp/service/MapDataGetting.java ---
+
+package com.example.landapp.service;
+
+import com.example.landapp.dto.OverpassResponseDTO;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
+
+import java.util.Locale;
+import java.util.Objects;
+import java.util.stream.Collectors;
+
+
+/*
+RestClient acts as the middleman between our website and OpenStreetMap
+*/
+
+@Service
+public class MapDataGetting {
+
+    private final RestClient restClient;
+
+    public MapDataGetting(RestClient restClient) {
+        this.restClient = restClient;
+    }
+
+    public MapDataResult getLandContext(Double lat, Double lon) {
+
+        String rawQuery = String.format(
+                "[out:json];(nwr(around:150, %f, %f););out tags center;",
+                lat, lon
+        );
+
+        try {
+            // THE "TRANSLATION": RestClient automatically translates (deserializes)
+            // complex raw JSON text into our structured Java DTO (OverpassResponseDTO).
+            OverpassResponseDTO response = restClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/api/interpreter") // Ensure Config baseUrl is ONLY https://overpass-api.de
+                            .queryParam("data", rawQuery)
+                            .build())
+                    .retrieve()
+                    .body(OverpassResponseDTO.class);
+
+            //  Using RestClient ensures we handle timeouts,
+            // SSL security, and connection management so the website doesn't freeze.
+            if (response == null || response.getElements() == null || response.getElements().isEmpty()) {
+                return new MapDataResult("No Map Data Found", "None", "Unknown");
+            }
+
+            MapDataResult result = new MapDataResult();
+
+            //Data mapping check
+            result.setAmenities(response.getElements().stream()
+                    .map(e -> e.getTags() != null ? e.getTags().get("amenity") : null)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .collect(Collectors.joining(", ")));
+
+            result.setSuggestedLandType(response.getElements().stream()
+                    .map(e -> e.getTags() != null ?
+                            (e.getTags().get("landuse") != null ? e.getTags().get("landuse") : e.getTags().get("natural"))
+                            : null)
+                    .filter(Objects::nonNull)
+                    .findFirst()
+                    .orElse("Unknown"));
+
+            result.setAccessRoad(response.getElements().stream()
+                    .map(e -> e.getTags() != null ? e.getTags().get("highway") : null)
+                    .filter(Objects::nonNull)
+                    .findFirst()
+                    .orElse("Access Road Not Mapped"));
+
+            return result;
+        } catch (Exception e) {
+            System.err.println("Overpass API Failure: " + e.getMessage());
+            return new MapDataResult("Error fetching data", "", "");
+        }
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    // Helper class to hold the extracted data
+    public static class MapDataResult {
+        private String suggestedLandType;
+        private String amenities;
+        private String accessRoad;
+    }
+}
+
+--- FILE: src/main/java/com/example/landapp/service/StripePaymentService.java ---
+
+package com.example.landapp.service;
+
+import com.example.landapp.entity.LandListing;
+import com.example.landapp.entity.Owner;
+import com.example.landapp.entity.VerificationStatus;
+import com.example.landapp.repository.LandListingRepository;
+import com.stripe.exception.StripeException;
+import com.stripe.model.Customer;
+import com.stripe.model.Event;
+import com.stripe.model.checkout.Session;
+import com.stripe.param.CustomerCreateParams;
+import com.stripe.param.checkout.SessionCreateParams;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+@Slf4j
+public class StripePaymentService {
+
+    private final LandListingRepository landRepository;
+    private final String frontendUrl;
+
+    public StripePaymentService(
+            LandListingRepository landRepository,
+            @Value("${frontend.url:http://localhost:3000}") String frontendUrl) {
+        this.landRepository = landRepository;
+        this.frontendUrl = frontendUrl;
+    }
+
+    @Transactional
+    public String initiateListingPayment(Long listingId, Owner currentOwner) {
+        LandListing listing = landRepository.findById(listingId)
+                .orElseThrow(() -> new RuntimeException("Listing Not Found With Id: " + listingId));
+
+        // Security check: Only the owner who created the listing can pay for it
+        if (!currentOwner.getId().equals(listing.getOwner().getId())) {
+            throw new RuntimeException("Unauthorised: This listing does not belong to you.");
+        }
+
+        // Generate the Stripe URLs for your Next.js frontend
+        String successUrl = frontendUrl + "/owner/payment/success?session_id={CHECKOUT_SESSION_ID}";
+        String cancelUrl = frontendUrl + "/owner/payment/failure";
+
+        String sessionUrl = getCheckoutSession(listing, currentOwner, successUrl, cancelUrl);
+
+        // Update status to indicate we are waiting for the webhook
+        listing.setVerificationStatus(VerificationStatus.PENDING_PAYMENT);
+        landRepository.save(listing);
+
+        return sessionUrl;
+    }
+
+    private String getCheckoutSession(LandListing listing, Owner owner, String successUrl, String failureUrl) {
+        log.info("Creating Stripe session for Land Listing Id: {}", listing.getId());
+
+        try {
+            // Optional: Create a Stripe Customer (Good for tracking payments later)
+            CustomerCreateParams customerParams = CustomerCreateParams.builder()
+                    .setName(owner.getFirstName() + " " + owner.getLastName())
+                    .setEmail(owner.getEmail())
+                    .build();
+            Customer customer = Customer.create(customerParams);
+
+            SessionCreateParams sessionParams = SessionCreateParams.builder()
+                    .setMode(SessionCreateParams.Mode.PAYMENT)
+                    .setBillingAddressCollection(SessionCreateParams.BillingAddressCollection.REQUIRED)
+                    .setCustomer(customer.getId())
+                    .setSuccessUrl(successUrl)
+                    .setCancelUrl(failureUrl)
+                    .addLineItem(
+                            SessionCreateParams.LineItem.builder()
+                                    .setQuantity(1L) // Always 1 fee per listing
+                                    .setPriceData(
+                                            SessionCreateParams.LineItem.PriceData.builder()
+                                                    .setCurrency("lkr") // Sri Lankan Rupees
+                                                    .setUnitAmount(500000L) // Rs. 5000.00
+                                                    .setProductData(
+                                                            SessionCreateParams.LineItem.PriceData.ProductData.builder()
+                                                                    .setName("Land Verification Fee: " + listing.getTitle())
+                                                                    .setDescription("Location: " + listing.getLocation())
+                                                                    .build()
+                                                    )
+                                                    .build()
+                                    )
+                                    .build()
+                    )
+                    .build();
+
+            Session session = Session.create(sessionParams);
+
+            // Save the session ID to the database so the Webhook can verify it
+            listing.setPaymentSessionId(session.getId());
+            landRepository.save(listing);
+
+            log.info("Session created successfully for Listing Id: {}", listing.getId());
+            return session.getUrl();
+
+        } catch (StripeException e) {
+            log.error("Stripe API Error: ", e);
+            throw new RuntimeException("Failed to create Stripe checkout session", e);
+        }
+    }
+
+    // ---------------------------------------------------------
+    // THE WEBHOOK LOGIC: What happens when the money clears
+    // ---------------------------------------------------------
+    @Transactional
+    public void capturePayment(Event event) {
+        // We only care about the event when a checkout is successfully completed
+        if ("checkout.session.completed".equals(event.getType())) {
+
+            // Extract the session object from Stripe's JSON payload
+            Session session = (Session) event.getDataObjectDeserializer().getObject().orElse(null);
+            if (session == null) {
+                log.error("Webhook Error: Could not deserialize Stripe session.");
+                return;
+            }
+
+            String sessionId = session.getId();
+
+            // Find the exact land listing in your database that matches this payment
+            LandListing listing = landRepository.findByPaymentSessionId(sessionId)
+                    .orElseThrow(() -> new RuntimeException("Listing not found for Stripe session: " + sessionId));
+
+            // BOOM! PAYMENT SUCCESSFUL!
+            // Move it out of PENDING_PAYMENT and into the Authenticator's Queue!
+            listing.setVerificationStatus(VerificationStatus.PENDING_VERIFICATION);
+            landRepository.save(listing);
+
+            log.info("✅ Payment confirmed via Webhook! Listing {} is now PENDING_VERIFICATION.", listing.getId());
+        } else {
+            // Optional: Log other events if you want to see what else Stripe sends
+            log.info("Unhandled Stripe event type: {}", event.getType());
+        }
+    }
+}
+
+--- FILE: src/main/java/com/example/landapp/service/SupabaseStorageService.java ---
+
+package com.example.landapp.service;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.UUID;
+
+@Service
+public class SupabaseStorageService {
+
+    @Value("${supabase.url}")
+    private String supabaseUrl;
+
+    @Value("${supabase.key}")
+    private String supabaseKey;
+
+    @Value("${supabase.bucket.name}")
+    private String bucketName;
+
+    public String uploadFile(MultipartFile file) throws IOException, InterruptedException {
+        // Generate a unique file name
+        String originalFilename = file.getOriginalFilename();
+        String uniqueFileName = UUID.randomUUID().toString() + "-" + originalFilename;
+
+        // Construct the Supabase API endpoint for uploading
+        String uploadEndpoint = supabaseUrl + "/storage/v1/object/" + bucketName + "/" + uniqueFileName;
+
+        // Build the HTTP Request
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(uploadEndpoint))
+                .header("Authorization", "Bearer " + supabaseKey)
+                .header("apikey", supabaseKey)
+                .header("Content-Type", file.getContentType()) // e.g., image/jpeg or application/pdf
+                .POST(HttpRequest.BodyPublishers.ofByteArray(file.getBytes()))
+                .build();
+
+        // Send the request
+        HttpClient client = HttpClient.newHttpClient();
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+        if (response.statusCode() >= 300) {
+            throw new RuntimeException("Failed to upload file to Supabase: " + response.body());
+        }
+
+        // Return the public URL so you can save it to your database
+        return supabaseUrl + "/storage/v1/object/public/" + bucketName + "/" + uniqueFileName;
+    }
+}
+--- FILE: src/main/java/com/example/landapp/service/AuthenticationService.java ---
+
+package com.example.landapp.service;
+
+import com.example.landapp.dto.InvestorRegistrationDTO;
+import com.example.landapp.dto.LandAuthenticatorRegistrationDTO;
+import com.example.landapp.dto.LoginDTO;
+import com.example.landapp.dto.OwnerRegistrationDTO;
+import com.example.landapp.entity.BaseUser;
+import com.example.landapp.entity.Investor;
+import com.example.landapp.entity.LandAuthenticator;
+import com.example.landapp.entity.Owner;
+import com.example.landapp.repository.UserRepository;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+@Service
+public class AuthenticationService {
+
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final AuthenticationManager authenticationManager;
+    private final RicGenerator ricGenerator;
+
+
+    public AuthenticationService(
+            UserRepository userRepository,
+            AuthenticationManager authenticationManager,
+            PasswordEncoder passwordEncoder, RicGenerator ricGenerator
+    ) {
+        this.userRepository = userRepository;
+        this.authenticationManager = authenticationManager;
+        this.passwordEncoder = passwordEncoder;
+        this.ricGenerator = ricGenerator;
+
+    }
+
+    // --- REGISTRATION METHODS ---
+
+    public Owner registerOwner(OwnerRegistrationDTO input) {
+        Owner owner = new Owner();
+        owner.setFirstName(input.getFirstName());
+        owner.setLastName(input.getLastName());
+        owner.setEmail(input.getEmail());
+        owner.setContactNumber(input.getContactNumber());
+        owner.setRicCode(generateUniqueRic());
+
+        // Hash the password before saving!
+        owner.setPasswordHash(passwordEncoder.encode(input.getPasswordHash()));
+
+        return userRepository.save(owner);
+    }
+
+    public Investor registerInvestor(InvestorRegistrationDTO input) {
+        Investor investor = new Investor();
+        investor.setFirstName(input.getFirstName());
+        investor.setLastName(input.getLastName());
+        investor.setEmail(input.getEmail());
+        investor.setContactNumber(input.getContactNumber());
+        investor.setRicCode(generateUniqueRic());
+
+        // Hash the password before saving!
+        investor.setPasswordHash(passwordEncoder.encode(input.getPasswordHash()));
+
+        return userRepository.save(investor);
+    }
+
+    public LandAuthenticator registerAuthenticator(LandAuthenticatorRegistrationDTO input) {
+        LandAuthenticator authenticator = new LandAuthenticator();
+        authenticator.setFirstName(input.getFirstName());
+        authenticator.setLastName(input.getLastName());
+        authenticator.setEmail(input.getEmail());
+        authenticator.setContactNumber(input.getContactNumber());
+        authenticator.setRicCode(generateUniqueRic());
+
+        // This is unique to the authenticator
+        authenticator.setProfessionalRegNumber(input.getProfessionalRegNumber());
+
+        // Hash the password before saving!
+        authenticator.setPasswordHash(passwordEncoder.encode(input.getPasswordHash()));
+
+        return userRepository.save(authenticator);
+    }
+
+    // --- AUTHENTICATION (LOGIN) METHOD ---
+
+    public BaseUser authenticate(LoginDTO input) {
+        // 1. Spring Security checks if the email and raw password match the hash in the DB
+        authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(
+                        input.getEmail(),
+                        input.getPassword()
+                )
+        );
+
+        // 2. If successful, fetch the user from the database and return them
+        return userRepository.findByEmail(input.getEmail())
+                .orElseThrow(() -> new RuntimeException("User not found after authentication"));
+    }
+
+    private String generateUniqueRic() {
+        String ric;
+        do {
+            ric = ricGenerator.generate();
+        } while (userRepository.existsByRicCode(ric));
+        return ric;
+    }
+}
+--- FILE: src/main/java/com/example/landapp/service/InvestorService.java ---
+
+
+//    public void searchLandListings(String keyword, Double maxPrice) {
+//        // TO DO: Use landRepository to find matching lands
+//        // e.g., landRepository.findByTitleContainingAndPriceLessThan(...)
+//    }
+//
+//    public void askQuestion(Long investorId, Long landListingId, String questionContent) {
+//        // TO DO: Create a Message entity with type "QUESTION"
+//        // Link it to the Investor (Sender) and the LandListing
+//    }
+//
+//    public void submitReview(Long investorId, Long landListingId, int rating, String reviewText) {
+//        // TO DO: Create a Review entity
+//        // Link it to the Investor and the LandListing
+//    }
+//
+//    public void inquireAboutLand(Long investorId, Long landListingId) {
+//        // TO DO: This could send an automated email to the Owner
+//        // or create an "Inquiry" record in the database.
+//    }
+//}
+//------------------------------------------------------------------------------------------------
+package com.example.landapp.service;
+
+import com.example.landapp.dto.*;
+import com.example.landapp.entity.*;
+import com.example.landapp.mapper.InvestorMapper;
+import com.example.landapp.mapper.LandListingMapper;
+import com.example.landapp.repository.*;
+import jakarta.transaction.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+import java.time.DateTimeException;
+import java.time.LocalDateTime;
+import java.util.Date;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Service
+public class InvestorService {
+
+    @Autowired
+    private InvestorRepository investorRepository;
+
+
+    @Autowired
+    private LandListingRepository landListingRepository;
+
+    @Autowired
+    private QuestionRepository questionRepository;
+
+
+    @Autowired
+    private ReviewRepository reviewRepository;
+
+
+//    @Autowired
+//    private MessageRepository messageRepository;
+//    // Talks to the message table
+//    // Used to save an inquiry message from investor to owner
+
+    @Autowired
+    private OwnerRepository ownerRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
+
+
+    @Autowired
+    private InvestorMapper investorMapper;
+
+    @Autowired
+    private LandListingMapper landListingMapper;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private InquiryRepository inquiryRepository;
+
+    @Transactional
+    public void updateInvestorProfile(Long investorId, InvestorUpdateDTO updateDto) {
+        Investor investor = investorRepository.findById(investorId)
+                .orElseThrow(() -> new RuntimeException("Investor not found with ID: " + investorId));
+
+        // Base user fields
+        if (updateDto.firstName() != null) investor.setFirstName(updateDto.firstName());
+        if (updateDto.lastName() != null) investor.setLastName(updateDto.lastName());
+        if (updateDto.contactNumber() != null) investor.setContactNumber(updateDto.contactNumber());
+
+        // Investor specific fields
+        if (updateDto.preferredLocation() != null) investor.setPreferredLocation(updateDto.preferredLocation());
+        if (updateDto.investmentBudget() != null) investor.setInvestmentBudget(updateDto.investmentBudget());
+
+        investorRepository.save(investor);
+    }
+
+    public List<LandListingResponseDTO> searchLandListings(String keyword, Double maxPrice) {
+
+        //Fetch all active listings from the database
+        List<LandListing> listings = landListingRepository
+                .findByStatus(ListingStatus.AVAILABLE);
+
+        //Filter by keyword if provided
+        if (keyword != null && !keyword.isBlank()) {
+            listings = listings.stream()
+                    .filter(l ->
+                            l.getTitle().toLowerCase().contains(keyword.toLowerCase())
+                                    || l.getLocation().toLowerCase().contains(keyword.toLowerCase())
+                    )
+                    .collect(Collectors.toList());
+        }
+
+        //Filter by maxPrice if provided
+        if (maxPrice != null) {
+            listings = listings.stream()
+                    // doubleValue() converts BigDecimal price to a double for comparison
+                    .filter(l -> l.getPrice().doubleValue() <= maxPrice)
+                    .collect(Collectors.toList());
+        }
+
+        //Convert each LandListing entity → LandListingResponseDTO
+        return listings.stream()
+                .map(landListingMapper::toResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Cacheable(value = "allListings")
+    public void askQuestion(Long investorId, Long listingId, String content) {
+
+        //Find the investor from DB by their ID
+        Investor investor = investorRepository.findById(investorId)
+                .orElseThrow(() -> new RuntimeException("Investor not found: " + investorId));
+
+        //Find the land listing from DB by its ID
+        LandListing listing = landListingRepository.findById(listingId)
+                .orElseThrow(() -> new RuntimeException("Listing not found: " + listingId));
+
+        //Build the Question entity
+        Question question = new Question();
+        question.setContent(content);
+        question.setInvestor(investor);
+        question.setLandListing(listing);
+        question.setCreatedAt(LocalDateTime.now());
+
+        //Save the question to the database
+        questionRepository.save(question);
+    }
+
+    @CacheEvict(value = "listingReviews", key = "#listingId") // Wipes the old reviews cache!
+    public void submitReview(Long investorId,Long ownerId, int rating, String comment) {
+
+        //Validate the rating range
+        if (rating < 1 || rating > 5) {
+            throw new RuntimeException("Rating must be between 1 and 5");
+        }
+
+        Investor investor = investorRepository.findById(investorId)
+                .orElseThrow(() -> new RuntimeException("Investor not found: " + investorId));
+
+        Owner owner = ownerRepository.findById(ownerId)
+                .orElseThrow(() -> new RuntimeException("Owner not found: "+ ownerId));
+
+        //Build the Review entity
+        Review review = new Review();
+        review.setRating(rating);
+        review.setComment(comment);
+        review.setInvestor(investor);
+        review.setOwner(owner);
+        review.setCreatedAt(LocalDateTime.now());
+
+        //Save the review
+        reviewRepository.save(review);
+
+
+    }
+
+    // 1. Create the Inquiry (Simplified, no longer returns instant owner details)
+    public void inquireAboutLand(Long investorId, Long listingId, String customMessage) {
+        if (inquiryRepository.existsByInvestorIdAndLandListingId(investorId, listingId)) {
+            throw new RuntimeException("You have already sent an inquiry for this property!");
+        }
+
+        Investor investor = investorRepository.findById(investorId).orElseThrow();
+        LandListing listing = landListingRepository.findById(listingId).orElseThrow();
+
+        Inquiry inquiry = new Inquiry();
+        inquiry.setInvestor(investor);
+        inquiry.setLandListing(listing);
+        inquiry.setOwner(listing.getOwner());
+        inquiry.setMessage(customMessage);
+        inquiryRepository.save(inquiry);
+    }
+
+    // 2. Fetch Investor's History (Generates the dynamic failsafe messages!)
+    public List<InvestorInquiryResponseDTO> getInvestorInquiries(Long investorId) {
+        List<Inquiry> inquiries = inquiryRepository.findByInvestorIdOrderByCreatedAtDesc(investorId);
+
+        return inquiries.stream().map(inquiry -> {
+            InvestorInquiryResponseDTO dto = new InvestorInquiryResponseDTO();
+            dto.setInquiryId(inquiry.getId());
+            dto.setLandTitle(inquiry.getLandListing().getTitle());
+            dto.setOwnerFullName(inquiry.getOwner().getFirstName() + " " + inquiry.getOwner().getLastName());
+            dto.setStatus(inquiry.getStatus());
+            dto.setCreatedAt(inquiry.getCreatedAt());
+
+            // THE MAGIC: Generate the contextual message for the Next.js UI
+            if (inquiry.getStatus() == InquiryStatus.PENDING) {
+                dto.setPlatformUpdateMessage("Your inquiry has been sent! Waiting for the owner to review it.");
+            } else if (inquiry.getStatus() == InquiryStatus.CONTACTED) {
+                String methodStr = inquiry.getChosenContactMethod() == ContactMethod.EMAIL ? "an email" : "a phone call";
+                String ownerPhone = inquiry.getOwner().getContactNumber();
+
+                dto.setPlatformUpdateMessage(
+                        "The owner will send " + methodStr + " to contact you. " +
+                                "If the owner doesn't contact you within the relevant time period, please contact them directly at: " + ownerPhone
+                );
+            }
+
+            return dto;
+        }).toList();
+    }
+    public InvestorResponseDTO getInvestorById(Long investorId) {
+
+
+
+
+        Investor investor = investorRepository.findById(investorId)
+                .orElseThrow(() -> new RuntimeException("Investor not found"));
+        return investorMapper.toResponseDTO(investor);
+    }
+
+}
+
+
+--- FILE: src/main/java/com/example/landapp/service/LandListingService.java ---
+
+package com.example.landapp.service;
+
+import com.example.landapp.dto.AnswerResponseDTO;
+import com.example.landapp.dto.LandListingResponseDTO;
+import com.example.landapp.dto.QuestionResponseDTO;
+import com.example.landapp.dto.ReviewResponseDTO;
+import com.example.landapp.entity.Answer;
+import com.example.landapp.entity.LandListing;
+import com.example.landapp.entity.Question;
+import com.example.landapp.entity.Review;
+import com.example.landapp.mapper.LandListingMapper;
+import com.example.landapp.repository.AnswerRepository;
+import com.example.landapp.repository.LandListingRepository;
+import com.example.landapp.repository.QuestionRepository;
+import com.example.landapp.repository.ReviewRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+@Service
+public class LandListingService {
+
+    @Autowired
+    private LandListingRepository landListingRepository;
+
+    @Autowired
+    private QuestionRepository questionRepository;
+
+    @Autowired
+    private AnswerRepository answerRepository; // We need this now!
+
+    @Autowired
+    private ReviewRepository reviewRepository;
+
+    @Autowired
+    private LandListingMapper landListingMapper;
+
+    // 1. GET SINGLE LISTING DETAILS
+    @Cacheable(value = "singleLandListing", key = "#listingId")
+    public LandListingResponseDTO getListingById(Long listingId) {
+        LandListing listing = landListingRepository.findById(listingId)
+                .orElseThrow(() -> new RuntimeException("Listing not found with ID: " + listingId));
+
+        return landListingMapper.toResponseDTO(listing);
+    }
+
+    // 2. GET QUESTIONS AND NESTED ANSWERS
+    @Cacheable(value = "listingQuestions", key = "#listingId")
+    public List<QuestionResponseDTO> getListingQuestions(Long listingId) {
+        // Fetch all questions for this land
+        List<Question> questions = questionRepository.findByLandListing_Id(listingId);
+
+        return questions.stream().map(question -> {
+            QuestionResponseDTO dto = new QuestionResponseDTO();
+            dto.setId(question.getId());
+            dto.setContent(question.getContent()); // Inherited from Message
+            dto.setCreatedAt(question.getCreatedAt());
+
+            // TODO: Add 'private String investorName;' to QuestionResponseDTO and uncomment this!
+            // if (question.getInvestor() != null) {
+            //     dto.setInvestorName(question.getInvestor().getFirstName());
+            // }
+
+            // NEW FIX: Manually hunt down the answer using the AnswerRepository!
+            Optional<Answer> answerOpt = answerRepository.findByQuestionId(question.getId());
+
+            if (answerOpt.isPresent()) {
+                Answer answer = answerOpt.get();
+                AnswerResponseDTO answerDto = new AnswerResponseDTO();
+                answerDto.setId(answer.getId());
+                answerDto.setContent(answer.getContent()); // Inherited from Message
+                answerDto.setAnsweredAt(answer.getAnsweredAt());
+                answerDto.setLandListingId(listingId);
+
+                dto.setAnswer(answerDto);
+            }
+
+            return dto;
+        }).collect(Collectors.toList());
+    }
+
+    // 3. GET OWNER REVIEWS FOR THIS LISTING
+    @Cacheable(value = "listingReviews", key = "#listingId")
+    public List<ReviewResponseDTO> getListingReviews(Long listingId) {
+        LandListing listing = landListingRepository.findById(listingId)
+                .orElseThrow(() -> new RuntimeException("Listing not found with ID: " + listingId));
+
+        // Fetch all reviews using the new repository method we just added
+        List<Review> reviews = reviewRepository.findByOwnerId(listing.getOwner().getId());
+
+        return reviews.stream().map(review -> {
+            ReviewResponseDTO dto = new ReviewResponseDTO();
+            dto.setId(review.getId());
+            dto.setRating(review.getRating());
+            dto.setComment(review.getComment());
+            dto.setCreatedAt(review.getCreatedAt());
+
+            if (review.getInvestor() != null) {
+                dto.setInvestorName(review.getInvestor().getFirstName());
+            }
+
+            return dto;
+        }).collect(Collectors.toList());
+    }
+
+    // 4. GET ALL PUBLIC LISTINGS
+    @Cacheable(value = "allListings")
+    public List<LandListingResponseDTO> getAllListings() {
+        // Fetch all listings from the database.
+        // If you have a status enum, it's highly recommended to do:
+        // landListingRepository.findByStatus(ListingStatus.AVAILABLE);
+        List<LandListing> listings = landListingRepository.findAll();
+
+        return listings.stream()
+                .map(landListingMapper::toResponseDTO)
+                .collect(Collectors.toList());
+    }
+}
+--- FILE: src/main/java/com/example/landapp/service/OwnerService.java ---
+
+package com.example.landapp.service;
+
+import com.example.landapp.dto.*;
+import com.example.landapp.entity.*;
+import com.example.landapp.mapper.LandListingMapper;
+import com.example.landapp.mapper.OwnerMapper;
+import com.example.landapp.repository.*;
+import jakarta.transaction.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Service
+public class OwnerService {
+
+    @Autowired
+    private OwnerRepository ownerRepository;
+
+    @Autowired
+    private OwnerMapper ownerMapper;
+
+    @Autowired
+    private LandListingRepository landRepository;
+
+    @Autowired
+    private LandListingMapper landMapper;
+
+    @Autowired
+    private TrustScoreService trustScoreService;
+
+    @Autowired
+    private QuestionRepository questionRepository;
+
+    @Autowired
+    private AnswerRepository answerRepository;
+
+    @Autowired
+    private MapDataGetting mapDataService;
+
+
+    // 1. CREATE Listing
+    // Add this injection at the top of OwnerService
+    @Autowired
+    private SupabaseStorageService supabaseStorageService;
+
+    @Autowired
+    private InquiryRepository inquiryRepository;
+
+    @Transactional
+    @CacheEvict(value = "ownerProfile", key = "#ownerId") // <-- Wipes the old profile cache!
+    public void updateOwnerProfile(Long ownerId, OwnerUpdateDTO updateDto) {
+        Owner owner = ownerRepository.findById(ownerId)
+                .orElseThrow(() -> new RuntimeException("Owner not found with ID: " + ownerId));
+
+        if (updateDto.firstName() != null) owner.setFirstName(updateDto.firstName());
+        if (updateDto.lastName() != null) owner.setLastName(updateDto.lastName());
+        if (updateDto.contactNumber() != null) owner.setContactNumber(updateDto.contactNumber());
+
+        ownerRepository.save(owner);
+    }
+
+    // 1. CREATE Listing (Updated Signature)
+    @Transactional
+    @CacheEvict(value = "allListings", allEntries = true) // Wipes the entire homepage catalog cache!
+    public LandListingResponseDTO createListing(LandListingCreateDTO dto, List<MultipartFile> images, MultipartFile deedDocument) throws Exception {
+        Owner owner = ownerRepository.findById(dto.getOwnerId())
+                .orElseThrow(() -> new RuntimeException("Owner not found"));
+
+        LandListing listing = landMapper.toEntity(dto);
+        listing.setOwner(owner);
+
+        // --- NEW: UPLOAD FILES TO SUPABASE ---
+
+        // 1. Upload Images
+        List<String> imageUrls = new java.util.ArrayList<>();
+        if (images != null && !images.isEmpty()) {
+            for (MultipartFile image : images) {
+                String url = supabaseStorageService.uploadFile(image);
+                imageUrls.add(url);
+            }
+        }
+        listing.setImageUrls(imageUrls);
+
+        // 2. Upload Deed Document
+        List<String> documentUrls = new java.util.ArrayList<>();
+        if (deedDocument != null && !deedDocument.isEmpty()) {
+            String deedUrl = supabaseStorageService.uploadFile(deedDocument);
+            documentUrls.add(deedUrl);
+        }
+        listing.setDeedDocumentUrls(documentUrls);
+
+        // --- END FILE UPLOADS ---
+
+        MapDataGetting.MapDataResult mapResult = mapDataService.getLandContext(dto.getLatitude(), dto.getLongitude());
+        landMapper.addMapDataToEntity(listing, mapResult);
+
+        LandListing savedListing = landRepository.save(listing);
+
+        return landMapper.toResponseDTO(savedListing);
+    }
+
+    // 2. DELETE Listing
+    @Transactional
+    public void deleteListing(Long listingId, Long ownerId) {
+
+        LandListing listing = landRepository.findById(listingId)
+                .orElseThrow(() -> new RuntimeException("Listing not found"));
+
+        if (!listing.getOwner().getId().equals(ownerId)){
+            throw new RuntimeException("Unauthorized: You can only delete your own listings");
+        }
+
+        landRepository.delete(listing);
+
+    }
+
+    // 3. UPDATE Listing
+    @Transactional
+    @CacheEvict(value = "singleLandListing", key = "#listingId") // <-- Deletes old cache!
+    public void updateListing(Long listingId, LandListingCreateDTO updateDto) {
+        LandListing existingListing = landRepository.findById(listingId)
+                .orElseThrow(() -> new RuntimeException("Listing not found"));
+
+        if (!existingListing.getOwner().getId().equals(updateDto.getOwnerId())){
+            throw new RuntimeException("Unauthorized: You can only update your own listings");
+        }
+
+        // Update the existing entity with new values from the DTO
+        landMapper.updateEntityFromDto(updateDto, existingListing);
+
+        landRepository.save(existingListing);
+
+    }
+
+    @CacheEvict(value = "listingQuestions", key = "#question.landListing.id") // Wipes the questions cache so the answer shows up
+    public void answerQuestion(Long questionId, Long ownerId, String answerContent) {
+
+        //Find the question — throw 404 if not found
+        Question question = questionRepository.findById(questionId)
+                .orElseThrow(() -> new RuntimeException("Question not found"));
+
+        // STEP 2: Find the owner who is answering
+        Owner owner = ownerRepository.findById(ownerId)
+                .orElseThrow(() -> new RuntimeException("Owner not found"));
+
+        //Make sure this owner actually owns the listing
+        if (!question.getLandListing().getOwner().getId().equals(ownerId)) {
+            throw new RuntimeException("Unauthorized: You can only answer questions on your own listings");
+        }
+
+        // Build the Answer entity
+        Answer answer = new Answer();
+        answer.setQuestion(question);                  // FK → questionId
+        answer.setOwner(owner);                        // FK → ownerId
+        answer.setContent(answerContent);
+        answer.setAnsweredAt(LocalDateTime.now());
+
+        //Save to database
+        answerRepository.save(answer);
+    }
+
+    public List<OwnerInboxResponseDTO> getOwnerInquiries(Long ownerId) {
+        List<Inquiry> inquiries = inquiryRepository.findByOwnerIdOrderByCreatedAtDesc(ownerId);
+
+        return inquiries.stream().map(inquiry -> {
+            OwnerInboxResponseDTO dto = new OwnerInboxResponseDTO();
+            dto.setInquiryId(inquiry.getId());
+            dto.setLandListingId(inquiry.getLandListing().getId());
+            dto.setLandTitle(inquiry.getLandListing().getTitle());
+            dto.setCustomMessage(inquiry.getMessage());
+
+            // FULL NAME Implementation
+            dto.setInvestorFullName(inquiry.getInvestor().getFirstName() + " " + inquiry.getInvestor().getLastName());
+            dto.setInvestorContactNumber(inquiry.getInvestor().getContactNumber());
+            dto.setInvestorEmail(inquiry.getInvestor().getEmail());
+
+            dto.setStatus(inquiry.getStatus());
+            dto.setCreatedAt(inquiry.getCreatedAt());
+            return dto;
+        }).toList();
+    }
+
+    // 2. Owner replies to the inquiry
+    @Transactional
+    @CacheEvict(value = "ownerProfile", key = "#ownerId") // <-- Forces the Trust Score to recalculate next time!
+    public void replyToInquiry(Long inquiryId, Long ownerId, ContactMethod method) {
+        Inquiry inquiry = inquiryRepository.findById(inquiryId)
+                .orElseThrow(() -> new RuntimeException("Inquiry not found"));
+
+        if (!inquiry.getOwner().getId().equals(ownerId)) {
+            throw new RuntimeException("Unauthorized: This inquiry does not belong to you.");
+        }
+
+        // Update the status and save the chosen contact method
+        inquiry.setStatus(InquiryStatus.CONTACTED);
+        inquiry.setChosenContactMethod(method);
+        inquiryRepository.save(inquiry);
+    }
+
+    public List<LandListingResponseDTO> getOwnerListings(Long ownerId) {
+        // 1. Fetch the raw entities from the database
+        List<LandListing> listings = landRepository.findByOwnerId(ownerId);
+
+        // 2. Convert them to Response DTOs and return the list
+        return listings.stream()
+                .map(landMapper::toResponseDTO)
+                .toList();
+
+
+
+
+    }
+
+    @Cacheable(value = "ownerProfile", key = "#ownerId")
+    public OwnerResponseDTO getOwnerById(Long ownerId) {
+
+        trustScoreService.calculateTrustScore(ownerId);
+
+
+        Owner owner = ownerRepository.findById(ownerId)
+                .orElseThrow(() -> new RuntimeException("Owner not found"));
+        return ownerMapper.toResponseDTO(owner);
+    }
+}
+--- FILE: src/main/java/com/example/landapp/service/RicGenerator.java ---
+
+package com.example.landapp.service;
+
+import org.springframework.stereotype.Component;
+import java.security.SecureRandom;
+
+@Component
+public class RicGenerator {
+
+    private static final SecureRandom RANDOM = new SecureRandom();
+    private static final String CHARS = "ABCDEF0123456789";
+
+    // Generates: RIC-7F3A-9B2C-1A4D
+    public String generate() {
+        return "RIC-" + seg() + "-" + seg() + "-" + seg();
+    }
+
+    private String seg() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 4; i++) {
+            sb.append(CHARS.charAt(RANDOM.nextInt(CHARS.length())));
+        }
+        return sb.toString();
+    }
+}
+--- FILE: src/main/java/com/example/landapp/service/TrustScoreService.java ---
+
+package com.example.landapp.service;
+
+import com.example.landapp.entity.*;
+import com.example.landapp.repository.InquiryRepository;
+import com.example.landapp.repository.LandListingRepository;
+import com.example.landapp.repository.OwnerRepository;
+import com.example.landapp.repository.ReviewRepository;
+import jakarta.transaction.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class TrustScoreService {
+
+    @Autowired
+    private LandListingRepository landRepository;
+
+    @Autowired
+    private OwnerRepository ownerRepository;
+
+    @Autowired
+    private ReviewRepository reviewRepository;
+
+    @Autowired
+    private InquiryRepository inquiryRepository;
+
+    @Transactional
+    public Double calculateTrustScore(Long ownerId) {
+        Owner owner = ownerRepository.findById(ownerId)
+                .orElseThrow(() -> new RuntimeException("Owner not found"));
+
+        double totalScore = 0.0;
+
+        // ---------------------------------------------------------
+        // 1. Profile Completeness (Max 10 Points)
+        // ---------------------------------------------------------
+        if (owner.getFirstName() != null && !owner.getFirstName().trim().isEmpty() &&
+                owner.getLastName() != null && !owner.getLastName().trim().isEmpty()) {
+            totalScore += 5.0; // 5 points for having a name
+        }
+        if (owner.getContactNumber() != null && !owner.getContactNumber().trim().isEmpty()) {
+            totalScore += 5.0; // 5 points for having a phone number
+        }
+
+        // ---------------------------------------------------------
+        // 2. Reviews & Ratings (Max 50 Points)
+        // ---------------------------------------------------------
+        List<Review> reviews = reviewRepository.findByOwnerId(ownerId);
+        if (!reviews.isEmpty()) {
+            // Calculate the average star rating
+            double sumRatings = reviews.stream().mapToInt(Review::getRating).sum();
+            double averageRating = sumRatings / reviews.size();
+
+            // Formula: (Avg Rating / 5.0) * 50
+            // Example: 4.5 stars = 45 points
+            totalScore += (averageRating / 5.0) * 50.0;
+        } else {
+            // Baseline for new owners so they don't look like scammers
+            totalScore += 25.0;
+        }
+
+        // ---------------------------------------------------------
+        // 3. Authenticated Listings Ratio (Max 30 Points)
+        // ---------------------------------------------------------
+        List<LandListing> allListings = landRepository.findByOwnerId(ownerId);
+        if (!allListings.isEmpty()) {
+            // Count how many lands the Authenticator actually approved
+            long verifiedCount = allListings.stream()
+                    .filter(l -> l.getVerificationStatus() == VerificationStatus.APPROVED)
+                    .count();
+
+            // Percentage of their total lands that are verified
+            double verificationRatio = (double) verifiedCount / allListings.size();
+            totalScore += (verificationRatio * 30.0);
+        } else {
+            // Baseline if they haven't uploaded lands yet
+            totalScore += 15.0;
+        }
+
+        // ---------------------------------------------------------
+        // 4. Responsiveness (Max 10 Points)
+        // ---------------------------------------------------------
+        List<Inquiry> inquiries = inquiryRepository.findByOwnerIdOrderByCreatedAtDesc(ownerId);
+        if (!inquiries.isEmpty()) {
+            // Count how many inquiries the Owner replied to (CONTACTED or CLOSED)
+            // If it's still PENDING, it means they ignored it!
+            long repliedCount = inquiries.stream()
+                    .filter(i -> i.getStatus() == InquiryStatus.CONTACTED || i.getStatus() == InquiryStatus.CLOSED)
+                    .count();
+
+            // Percentage of inquiries they actually answered
+            double replyRatio = (double) repliedCount / inquiries.size();
+            totalScore += (replyRatio * 10.0);
+        } else {
+            // Baseline if nobody has messaged them yet
+            totalScore += 5.0;
+        }
+
+        // ---------------------------------------------------------
+        // Finalize and Save
+        // ---------------------------------------------------------
+        // A failsafe to guarantee the score never breaks out of the 0-100 boundary
+        totalScore = Math.max(0.0, Math.min(100.0, totalScore));
+
+        // Format to 1 decimal place (e.g., 87.5) to keep the DB clean
+        totalScore = Math.round(totalScore * 10.0) / 10.0;
+
+        owner.setTrustScore(totalScore);
+        ownerRepository.save(owner);
+
+        return totalScore;
+    }
+}
+--- FILE: src/main/java/com/example/landapp/service/LandAuthenticatorService.java ---
+
+package com.example.landapp.service;
+
+import com.example.landapp.dto.AuthenticationDecisionDTO;
+import com.example.landapp.dto.AuthenticatorUpdateDTO;
+import com.example.landapp.dto.LandListingDetailDTO;
+import com.example.landapp.entity.LandAuthenticator;
+import com.example.landapp.entity.LandListing;
+import com.example.landapp.entity.VerificationStatus;
+import com.example.landapp.mapper.LandListingMapper;
+import com.example.landapp.repository.LandAuthenticatorRepository;
+import com.example.landapp.repository.LandListingRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Date;
+import java.util.List;
+
+@Service
+public class LandAuthenticatorService {
+
+    @Autowired
+    private LandAuthenticatorRepository authenticatorRepository;
+
+    @Autowired
+    private LandListingRepository landRepository;
+
+    @Autowired
+    private LandListingMapper landMapper;
+
+    // 1. Register a new Authenticator
+    @Transactional
+    public LandAuthenticator registerAuthenticator(LandAuthenticator authenticator) {
+        // Here you would normally hash the password before saving
+        authenticator.setPasswordHash("HASHED_" + authenticator.getPasswordHash());
+        return authenticatorRepository.save(authenticator);
+    }
+
+    @Transactional
+    public void updateAuthenticatorProfile(Long authenticatorId, AuthenticatorUpdateDTO updateDto) {
+        // 1. Find the exact authenticator in the database
+        LandAuthenticator authenticator = authenticatorRepository.findById(authenticatorId)
+                .orElseThrow(() -> new RuntimeException("Authenticator not found with ID: " + authenticatorId));
+
+        // 2. Update only the safe fields using standard GETTERS
+        if (updateDto.getFirstName() != null) {
+            authenticator.setFirstName(updateDto.getFirstName());
+        }
+        if (updateDto.getLastName() != null) {
+            authenticator.setLastName(updateDto.getLastName());
+        }
+        if (updateDto.getContactNumber() != null) {
+            authenticator.setContactNumber(updateDto.getContactNumber());
+        }
+        if (updateDto.getProfessionalRegNumber() != null) {
+            authenticator.setProfessionalRegNumber(updateDto.getProfessionalRegNumber());
+        }
+
+        // 3. Save the changes
+        authenticatorRepository.save(authenticator);
+    }
+
+    // 2. The Core Method: Authenticate Land!
+    @Transactional
+    public void authenticateLand(AuthenticationDecisionDTO decision) {
+
+        // Find the authenticator
+        LandAuthenticator authenticator = authenticatorRepository.findById(decision.getAuthenticatorId())
+                .orElseThrow(() -> new RuntimeException("Authenticator not found"));
+
+        // Find the land listing
+        LandListing listing = landRepository.findById(decision.getListingId())
+                .orElseThrow(() -> new RuntimeException("Land Listing not found"));
+
+        // Update the listing's verification status
+        // (You'll need to add a 'verificationStatus' and 'verifiedBy' field to your LandListing entity)
+        if (decision.isApproved()) {
+            // listing.setVerificationStatus("APPROVED");
+            // listing.setVerifiedBy(authenticator);
+            listing.setVerificationStatus(VerificationStatus.APPROVED);
+        } else {
+            // listing.setVerificationStatus("REJECTED");
+            listing.setVerificationStatus(VerificationStatus.REJECTED);
+        }
+
+        listing.setLandAuthenticator(authenticator);
+        listing.setVerifiedAt(new Date());
+
+        // Save the updated listing
+        landRepository.save(listing);
+    }
+
+    // 1. Get all listings waiting for verification
+    public List<LandListingDetailDTO> getPendingListings() {
+        return landRepository.findByVerificationStatus(VerificationStatus.PENDING_VERIFICATION)
+                .stream()
+                .map(landMapper::toDetailDTO)
+                .toList();
+    }
+
+    // 2. Get specific details when an authenticator clicks a listing
+    public LandListingDetailDTO getListingById(Long id) {
+        LandListing land = landRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Land not found with ID: "+ id));
+        return landMapper.toDetailDTO(land);
+    }
+
+
+}
+--- FILE: src/main/java/com/example/landapp/exceptions/GlobalExceptionHandler.java ---
+
+package com.example.landapp.exceptions;
+
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.security.SignatureException;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.ProblemDetail;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AccountStatusException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+
+    @ExceptionHandler(Exception.class)
+    public ProblemDetail handleSecurityException(Exception exception) {
+        ProblemDetail errorDetail = null;
+
+        // Prints the error in your IntelliJ console so YOU can see what went wrong
+        exception.printStackTrace();
+
+        if (exception instanceof BadCredentialsException) {
+            errorDetail = ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(401), exception.getMessage());
+            errorDetail.setProperty("description", "The email or password is incorrect.");
+            return errorDetail;
+        }
+
+        if (exception instanceof AccountStatusException) {
+            errorDetail = ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(403), exception.getMessage());
+            errorDetail.setProperty("description", "This account is locked.");
+        }
+
+        if (exception instanceof AccessDeniedException) {
+            errorDetail = ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(403), exception.getMessage());
+            errorDetail.setProperty("description", "You are not authorized to access this resource.");
+        }
+
+        if (exception instanceof SignatureException) {
+            errorDetail = ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(403), exception.getMessage());
+            errorDetail.setProperty("description", "The JWT signature is invalid. Token may be tampered with.");
+        }
+
+        if (exception instanceof ExpiredJwtException) {
+            errorDetail = ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(403), exception.getMessage());
+            errorDetail.setProperty("description", "Your session has expired. Please log in again.");
+        }
+
+        // A fallback for any other random crashes
+        if (errorDetail == null) {
+            errorDetail = ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(500), exception.getMessage());
+            errorDetail.setProperty("description", "An unknown internal server error occurred.");
+        }
+
+        return errorDetail;
+    }
+}
+--- FILE: src/main/resources/application-secrets.properties ---
+
+# Database & Auth
+JWT_SECRET=d7393b0046e2a4b4fe0c65c96c95d00b22c6ec58e4d9ecaebc6476b9a5534d2c
+DB_PASSWORD=npg_WGjbaQIi3d0o
+
+# Supabase Storage
+SUPABASE_KEY=sb_secret_iDXHbM_Ib_r9H8dm6DCFNA_VkRQgyiS
+
+# Stripe Payments
+STRIPE_SECRET_KEY=sk_test_51TD60KElC7A7VDHuK01ygEGsag2ToqDieOLxXx2p9bbStWB19xWwbAEtGorbmLrZJWt9t5FwbpFiWrgMFL5m09Tb00hBa3vhVu
+STRIPE_WEBHOOK_SECRET=whsec_85239ad4d89062aa97582c9c8920244dd6bd98e2e1bb0f38be58904a9ed84a47
+--- FILE: src/main/resources/application.properties ---
+
+spring.application.name=landapp
+spring.profiles.include=secrets
+
+security.jwt.secret-key=${JWT_SECRET}
+# 1h in millisecond
+security.jwt.expiration-time=3600000
+
+# 1. Your Neon PostgreSQL connection URL
+spring.datasource.url=jdbc:postgresql://ep-solitary-band-a1yx18oy-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+spring.datasource.username=neondb_owner
+spring.datasource.password=${DB_PASSWORD}
+
+# 2. THE MAGIC LINE FOR CHANGING MODELS!
+# "update" tells Spring to automatically modify the database tables when you change your Java code.
+spring.jpa.hibernate.ddl-auto=create
+
+# 3. Tells Spring which SQL dialect to use
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect
+
+#Supabase storage bucket to store images
+supabase.url=https://xfavmtwxkeoznqisfklw.supabase.co
+supabase.key=${SUPABASE_KEY}
+supabase.bucket.name=land-listings
+
+spring.servlet.multipart.max-file-size=20MB
+spring.servlet.multipart.max-request-size=20MB
+
+stripe.secret.key=${STRIPE_SECRET_KEY}
+stripe.webhook.secret=${STRIPE_WEBHOOK_SECRET}
+
+# Redis Configuration
+spring.data.redis.host=localhost
+spring.data.redis.port=6379
+# Expire cached data after 60 minutes (in milliseconds)
+spring.cache.redis.time-to-live=3600000
+
+--- FILE: src/test/java/com/example/landapp/LandappApplicationTests.java ---
+
+package com.example.landapp;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+
+@SpringBootTest
+class LandappApplicationTests {
+
+	@Test
+	void contextLoads() {
+	}
+
+}
+
+--- FILE: src/test/java/com/example/landapp/service/MapDataGettingTest.java ---
+
+package com.example.landapp.service;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+@SpringBootTest
+class MapDataGettingTest {
+    @Autowired
+    private MapDataGetting mapDataGetting;
+
+    @Test
+    void testGetLandContext() {
+        // Test coordinates (e.g., a park in London or a known location)
+        Double testLat = 7.0897;
+        Double testLon = 79.9925;
+
+        var result = mapDataGetting.getLandContext(testLat, testLon);
+
+        // Check if results are not null
+        assertNotNull(result);
+        System.out.println("Suggested Land: " + result.getSuggestedLandType());
+        System.out.println("Amenities: " + result.getAmenities());
+    }
+}
+--- FILE: docker-compose.yml ---
+
+version: '3.8'
+
+services:
+  redis-cache:
+    image: redis:latest
+    container_name: landapp-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+--- FILE: pom.xml ---
+
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>4.0.3</version>
+		<relativePath/> <!-- lookup parent from repository -->
+	</parent>
+	<groupId>com.example</groupId>
+	<artifactId>landapp</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name>landapp</name>
+	<description>Intelligent Land System</description>
+	<url/>
+	<licenses>
+		<license/>
+	</licenses>
+	<developers>
+		<developer/>
+	</developers>
+	<scm>
+		<connection/>
+		<developerConnection/>
+		<tag/>
+		<url/>
+	</scm>
+    <properties>
+        <java.version>21</java.version>
+        <maven.compiler.source>24</maven.compiler.source>
+        <maven.compiler.target>24</maven.compiler.target>
+    </properties>
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-webmvc</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-devtools</artifactId>
+			<scope>runtime</scope>
+			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-webmvc-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>0.11.5</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>0.11.5</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>0.11.5</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+		<dependency>
+			<groupId>com.stripe</groupId>
+			<artifactId>stripe-java</artifactId>
+			<version>25.6.0</version>
+		</dependency>
+		<dependency>
+			<groupId>me.paulschwarz</groupId>
+			<artifactId>spring-dotenv</artifactId>
+			<version>4.0.0</version>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-cache</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-redis</artifactId>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<annotationProcessorPaths>
+						<path>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+						</path>
+					</annotationProcessorPaths>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+					<excludes>
+						<exclude>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+						</exclude>
+					</excludes>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+
+</project>

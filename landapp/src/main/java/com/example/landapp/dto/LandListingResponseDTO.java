@@ -1,11 +1,13 @@
 package com.example.landapp.dto;
 import lombok.*;
+
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Date;
 import java.util.List;
 
 @Data
-public class LandListingResponseDTO {
+public class LandListingResponseDTO  implements Serializable {
 
     private Long id;
     private String title;

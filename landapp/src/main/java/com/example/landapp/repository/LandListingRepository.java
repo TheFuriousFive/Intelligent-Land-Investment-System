@@ -21,4 +21,7 @@ public interface LandListingRepository extends JpaRepository<LandListing, Long> 
     List<LandListing> findByStatus(ListingStatus status);
 
     Optional<LandListing> findByPaymentSessionId(String paymentSessionId);
+
+    // Finds all lands waiting for verification
+    List<LandListing> findByVerificationStatus(VerificationStatus status);
 }

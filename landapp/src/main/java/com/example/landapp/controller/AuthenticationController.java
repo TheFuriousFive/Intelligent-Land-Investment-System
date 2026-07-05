@@ -41,7 +41,7 @@ public class AuthenticationController {
         return ResponseEntity.ok(registeredInvestor);
     }
 
-    @PostMapping("/signup/authenticator")
+        @PostMapping("/signup/authenticator")
     public ResponseEntity<LandAuthenticator> registerAuthenticator(@RequestBody LandAuthenticatorRegistrationDTO registerDto) {
         LandAuthenticator registeredAuthenticator = authenticationService.registerAuthenticator(registerDto);
         return ResponseEntity.ok(registeredAuthenticator);

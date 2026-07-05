@@ -14,6 +14,7 @@ import com.example.landapp.repository.LandListingRepository;
 import com.example.landapp.repository.QuestionRepository;
 import com.example.landapp.repository.ReviewRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -39,6 +40,7 @@ public class LandListingService {
     private LandListingMapper landListingMapper;
 
     // 1. GET SINGLE LISTING DETAILS
+    @Cacheable(value = "singleLandListing", key = "#listingId")
     public LandListingResponseDTO getListingById(Long listingId) {
         LandListing listing = landListingRepository.findById(listingId)
                 .orElseThrow(() -> new RuntimeException("Listing not found with ID: " + listingId));
@@ -47,6 +49,7 @@ public class LandListingService {
     }
 
     // 2. GET QUESTIONS AND NESTED ANSWERS
+    @Cacheable(value = "listingQuestions", key = "#listingId")
     public List<QuestionResponseDTO> getListingQuestions(Long listingId) {
         // Fetch all questions for this land
         List<Question> questions = questionRepository.findByLandListing_Id(listingId);
@@ -81,6 +84,7 @@ public class LandListingService {
     }
 
     // 3. GET OWNER REVIEWS FOR THIS LISTING
+    @Cacheable(value = "listingReviews", key = "#listingId")
     public List<ReviewResponseDTO> getListingReviews(Long listingId) {
         LandListing listing = landListingRepository.findById(listingId)
                 .orElseThrow(() -> new RuntimeException("Listing not found with ID: " + listingId));
@@ -104,6 +108,7 @@ public class LandListingService {
     }
 
     // 4. GET ALL PUBLIC LISTINGS
+    @Cacheable(value = "allListings")
     public List<LandListingResponseDTO> getAllListings() {
         // Fetch all listings from the database.
         // If you have a status enum, it's highly recommended to do:
